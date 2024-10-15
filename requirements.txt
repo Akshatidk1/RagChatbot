@@ -307,7 +307,7 @@ SQLAlchemy==2.0.35
 srsly==2.4.8
 stack-data==0.6.2
 starlette==0.39.2
-statsmodels @ file:///C:/Users/91700/Downloads/statsmodels-0.14.0-cp311-cp311-win_amd64.whl#sha256=a6ad7b8aadccd4e4dd7f315a07bef1bca41d194eeaf4ec600d20dea02d242fce
+statsmodels==0.13.0
 streamlit==1.39.0
 swat==1.13.0
 sympy==1.13.3
