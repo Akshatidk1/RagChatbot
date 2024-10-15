@@ -1,0 +1,88 @@
+{
+    "ShivamTalks": [
+        {
+            "type": "human",
+            "content": "what is helicopter"
+        },
+        {
+            "type": "ai",
+            "content": "A helicopter is a type of aircraft that generates lift and thrust using one or more horizontally-spinning rotors. This design allows helicopters to take off and land vertically, hover, and fly in any direction.  Helicopters are particularly useful for tasks in areas where traditional aircraft are impractical due to the need for runways. \n"
+        },
+        {
+            "type": "human",
+            "content": "when it got invented"
+        },
+        {
+            "type": "ai",
+            "content": "While various inventors experimented with helicopter designs in the early 20th century, the first truly successful helicopter, capable of sustained flight and maneuverability, was the Focke-Wulf Fw 61, which first flew in 1936. \n"
+        }
+    ],
+    "kaotic": [
+        {
+            "type": "human",
+            "content": "what does kaotic"
+        },
+        {
+            "type": "ai",
+            "content": "This document does not provide the definition of \"kaotic.\" This document discusses the Katonic MLOps Platform, which helps companies develop and manage AI applications. It highlights the platform's features, benefits, and use cases. \n"
+        },
+        {
+            "type": "human",
+            "content": "it me about it's services"
+        },
+        {
+            "type": "ai",
+            "content": "The Katonic platform offers a suite of services for developing and managing AI, including: \n\n1. **Generative AI Platform:** This no-code platform allows businesses to build AI applications like chatbots and recommendation systems. \n2. **MLOps Platform:** This platform facilitates the entire AI lifecycle, from experimentation and deployment to monitoring and management of ML models. \n3. **Cloud-Agnostic Deployment:**  Katonic is built on Kubernetes, enabling deployment on any cloud environment (public or private). \n"
+        }
+    ],
+    "oges": [
+        {
+            "type": "human",
+            "content": "what does oges do"
+        },
+        {
+            "type": "ai",
+            "content": "Oges is a digital solutions company that specializes in the Oil & Gas industry. They offer a range of services, including digital recruitment, quotation management systems, well planning software, and completion string software. Their goal is to simplify and automate processes within the industry using advanced technologies like AI and ML. \n"
+        },
+        {
+            "type": "human",
+            "content": "give me it's contact number"
+        },
+        {
+            "type": "ai",
+            "content": "The provided text does not contain a contact number for Oges. \n"
+        },
+        {
+            "type": "human",
+            "content": "give me it's contact information"
+        },
+        {
+            "type": "ai",
+            "content": "Unfortunately, the provided text only mentions contacting Oges through a general \"Contact us\" call to action.  It does not provide a specific phone number, email address, or physical address. \n"
+        },
+        {
+            "type": "human",
+            "content": "who is praful"
+        },
+        {
+            "type": "ai",
+            "content": "There is no mention of anyone named Praful in the provided text. \n"
+        },
+        {
+            "type": "human",
+            "content": "tell me more about oges team"
+        },
+        {
+            "type": "ai",
+            "content": "The Oges team is composed of Oil & Gas domain experts, software engineers, recruitment experts, and data scientists. This combination of expertise allows them to develop digital solutions tailored to the specific needs of the Oil & Gas industry, focusing on automation and process simplification. They have a history of delivering projects and are described as having 6+ years of experience and a reputation for quality. \n"
+        },
+        {
+            "type": "human",
+            "content": "name all the team members"
+        },
+        {
+            "type": "ai",
+            "content": "Unfortunately, the provided text does not list all the team members of Oges. It only mentions their expertise lies in combining oil and gas professionals with software engineers and recruitment specialists. \n"
+        }
+    ]
+}
