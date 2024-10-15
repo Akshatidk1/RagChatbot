@@ -84,5 +84,23 @@
             "type": "ai",
             "content": "Unfortunately, the provided text does not list all the team members of Oges. It only mentions their expertise lies in combining oil and gas professionals with software engineers and recruitment specialists. \n"
         }
+    ],
+    "cars": [
+        {
+            "type": "human",
+            "content": "Hey!"
+        },
+        {
+            "type": "ai",
+            "content": "Oges helped a company to optimize operations planning efficiency by organizing thousands of completion tools with their completion string software. This software is one of many offered by Oges, which focuses on providing process-based product modules for oil and gas companies.  Oges also offers a digital recruitment platform. \n"
+        },
+        {
+            "type": "human",
+            "content": "i want to know about cars"
+        },
+        {
+            "type": "ai",
+            "content": "Cars are motor vehicles with four wheels that primarily transport people on roads. They are equipped with controls for driving, passenger comfort, and safety, and are powered by internal combustion engines or electric motors. Today, there are approximately one billion cars in use globally. \n"
+        }
     ]
 }
