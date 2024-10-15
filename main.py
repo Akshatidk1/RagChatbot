@@ -8,6 +8,7 @@ from router.upload import router as uploadrouter
 import json
 import os
 from typing import Dict, List
+import uvicorn
 app = FastAPI()
 
 
@@ -35,5 +36,5 @@ app.include_router(scraprouter, prefix="/web")
 app.include_router(uploadrouter,prefix="/upload")
 app.include_router(chatrouter,prefix="/rag")
 
-# To run the application, use:
-# uvicorn main:app --reload
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
