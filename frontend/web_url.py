@@ -24,7 +24,7 @@ def page_urls():
                     st.error("Error: Could not process the URLs.")
                 else:
                     st.success("URLs have been saved and processed successfully!")
-                    st.write("Entered URLs:", url_list)
+                    # st.write("Entered URLs:", url_list)
             else:
                 st.error(f"Error: Could not submit URLs. Status code: {response.status_code}")
         else:

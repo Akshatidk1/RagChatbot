@@ -19,15 +19,15 @@ def page_previous_chats():
                     st.markdown(f"""
                         <div style='display: flex; align-items: center; margin-bottom: 10px;'>
                             <span style='font-size: 1.5em; margin-right: 10px;'>👤</span>
-                            <strong>You:</strong> {message['content']}
+                            <strong>&nbsp; </strong> {message['content']}
                         </div>
                     """, unsafe_allow_html=True)
                 else:
                     # Emoji for AI
                     st.markdown(f"""
-                        <div style='display: flex; align-items: center; margin-bottom: 10px;'>
+                        <div style='display: flex; margin-bottom: 10px;'>
                             <span style='font-size: 1.5em; margin-right: 10px;'>🤖</span>
-                            <strong>AI:</strong> {message['content']}
+                        <div>{message['content']}</div>
                         </div>
                     """, unsafe_allow_html=True)
 
