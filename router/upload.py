@@ -51,17 +51,10 @@ async def scrape_web(request: Request):
 async def upload_doc(file: UploadFile = File(...)):
     '''Upload any type of file and return saved directory path. File is broken down into chunks.'''
     try:
-        # Ensure upload directory exists
         if not os.path.exists(UPLOAD_DIRECTORY):
             os.makedirs(UPLOAD_DIRECTORY)
-        
-        # Clear existing files in the upload directory
         clear_upload_directory(UPLOAD_DIRECTORY)
-        
-        # Save the file path
         save_path = os.path.join(UPLOAD_DIRECTORY, file.filename)
-        
-        # Save the file in chunks
         save_file_in_chunks(file.file, save_path)
         
         return {"error": False, "file_path": save_path}

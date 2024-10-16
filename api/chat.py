@@ -52,7 +52,7 @@ class ConversationalRAGChatbot:
         """Create and return the retriever."""
         try:
             retriever = self.vector_store.as_retriever()
-            logging.info(f"Retriever type: {type(retriever)}")  # Confirm it's a retriever
+            logging.info(f"Retriever type: {type(retriever)}")
             logging.info("Retriever created successfully")
             return retriever
         except Exception as e:

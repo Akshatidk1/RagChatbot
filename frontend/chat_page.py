@@ -77,23 +77,19 @@ def page_chat():
                         st.markdown(f"""
                             <div class="message-row">
                                 <span class="profile-emoji">👤</span>
-                                <div class="user-message">
-                                    {message['text']}
-                                </div>
+                                <div class="user-message">{message['text']}</div>
                             </div>
                         """, unsafe_allow_html=True)
                     else:
                         st.markdown(f"""
                             <div class="message-row">
                                 <span class="profile-emoji">🤖</span>
-                                <div class="ai-message">
-                                    {message['text']}
-                                </div>
+                                <div class="ai-message">{message['text']}</div>
                             </div>
                         """, unsafe_allow_html=True)
 
                 st.markdown("", unsafe_allow_html=True)
-                components.html(scroll_js, height=0)  # Ensure chat scrolls to bottom
+                components.html(scroll_js, height=0)  
 
         # Initially render chat messages
         render_chat()

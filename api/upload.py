@@ -32,7 +32,7 @@ def doc_to_vectordb(data):
                 if filename.endswith(".pdf"):
                     loader = PyPDFLoader(file_path)
                 elif filename.endswith(".docx"):
-                    loader = Docx2txtLoader(file_path)  # Corrected this part
+                    loader = Docx2txtLoader(file_path)
                 elif filename.endswith(".txt"):
                     loader = TextLoader(file_path, encoding='UTF-8')
                 elif filename.endswith(".xlsx"):

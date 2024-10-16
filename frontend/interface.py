@@ -54,11 +54,11 @@ st.sidebar.markdown("Choose a section to navigate to:")
 page = st.sidebar.selectbox("Choose a page", ["Enter Web URLs", "Chat", "Previous Chats", "Upload Document"])
 
 # Add a logo or image (optional) for a more polished UI
-# st.sidebar.image("./assets/logo.png", use_column_width=True)  # Adjust the path as per your app's assets
+# st.sidebar.image("./assets/logo.png", use_column_width=True) 
 
 # Display custom footer in sidebar
 st.sidebar.markdown("---")
-st.sidebar.markdown("Built with 💻 by Akshat for katonic.ai")
+st.sidebar.markdown("Built 💻 by Akshat Nishad for katonic.ai")
 
 # Enhanced Page 1: Enter Web URLs
 if page == "Enter Web URLs":
@@ -90,9 +90,3 @@ else:
     st.subheader("Upload and process files (PDF, DOCX, TXT, XLSX, PPTX)")
     page_upload_doc()
 
-# Optional footer for the main page
-st.markdown("""
-    <footer>
-    © 2024 Your Team - All rights reserved.
-    </footer>
-""", unsafe_allow_html=True)

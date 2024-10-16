@@ -12,7 +12,7 @@ def web_to_vectordb(url_list):
     try:
         loader = WebBaseLoader(
             web_paths=url_list,
-            bs_kwargs=dict(parse_only=SoupStrainer("p"))  # Target paragraph tags for main content
+            bs_kwargs=dict(parse_only=SoupStrainer("p"))  
         )
         doc = loader.load()
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
