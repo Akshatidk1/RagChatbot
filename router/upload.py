@@ -42,7 +42,7 @@ async def scrape_web(request: Request):
         request_body = await request.body()
         input_data = json.loads(request_body.decode('utf-8'))['data']
         data = doc_to_vectordb(input_data)
-        return data
+        return {"error": False, "message": "Data Updated Successfully"}
     except Exception as e:
         print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
         return {"error": True, "message": f"Some error occurred in: {str(e)}"}
@@ -64,7 +64,7 @@ async def upload_doc(file: UploadFile = File(...)):
         # Save the file in chunks
         save_file_in_chunks(file.file, save_path)
         
-        return {"success": True, "file_path": save_path}
+        return {"error": False, "file_path": save_path}
     
     except Exception as e:
         print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)

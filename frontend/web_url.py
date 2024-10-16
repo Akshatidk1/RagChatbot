@@ -16,7 +16,7 @@ def page_urls():
         if url_list:
             # Send request to scrapeWeb API
             payload = {"data": url_list}
-            response = requests.post("http://127.0.0.1:8000/web/scrapeWeb", json=payload)
+            response = requests.post("https://akshatchatbot.ogesone.com/web/scrapeWeb", json=payload)
 
             if response.status_code == 200:
                 response_data = response.json()

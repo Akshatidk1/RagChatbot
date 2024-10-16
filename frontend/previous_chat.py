@@ -5,7 +5,7 @@ import requests
 def page_previous_chats():
 
     # Fetch previous chat data from API (Replace with your actual API endpoint)
-    response = requests.get("http://127.0.0.1:8000/previous_chats")
+    response = requests.get("https://akshatchatbot.ogesone.com/previous_chats")
     
     if response.status_code == 200:
         previous_chats = response.json()
