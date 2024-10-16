@@ -102,5 +102,25 @@
             "type": "ai",
             "content": "Cars are motor vehicles with four wheels that primarily transport people on roads. They are equipped with controls for driving, passenger comfort, and safety, and are powered by internal combustion engines or electric motors. Today, there are approximately one billion cars in use globally. \n"
         }
+    ],
+    "akshat_nishad": [
+        {
+            "type": "human",
+            "content": "who is Akshat kumar nishad"
+        },
+        {
+            "type": "ai",
+            "content": "This document does not contain the answer to who Akshat Kumar Nishad is. This appears to be information from or about a company named Oges and the services they provide. Therefore, I cannot answer your question. \n"
+        }
+    ],
+    "intro_the_akshat": [
+        {
+            "type": "human",
+            "content": "who is akshat"
+        },
+        {
+            "type": "ai",
+            "content": "Please provide me with some context about \"Akshat.\" I need more information to answer your question. Without context, I don't know who Akshat is. \n"
+        }
     ]
 }

@@ -21,7 +21,7 @@ def page_urls():
         if url_list:
             # Send request to scrapeWeb API
             payload = {"data": url_list, "token": token}
-            response = requests.post("http://127.0.0.1:8000/web/scrapeWeb", json=payload)
+            response = requests.post("https://akshatchatbot.ogesone.com/web/scrapeWeb", json=payload)
 
             if response.status_code == 200:
                 st.success("URLs have been saved and processed!")
@@ -54,7 +54,7 @@ def page_chat():
 
             # Function to send message to FastAPI
             payload = {"session_id": session_name, "user_input": user_input}
-            response = requests.post("http://127.0.0.1:8000/rag/chat", json=payload)
+            response = requests.post("https://akshatchatbot.ogesone.com/rag/chat", json=payload)
 
             if response.status_code == 200:
                 response_data = response.json()
@@ -80,7 +80,7 @@ def page_previous_chats():
     st.title("Previous Chats")
 
     # Fetch previous chat data from API (Replace with your actual API endpoint)
-    response = requests.get("http://127.0.0.1:8000/previous_chats")
+    response = requests.get("https://akshatchatbot.ogesone.com/previous_chats")
     
     if response.status_code == 200:
         previous_chats = response.json()
@@ -97,13 +97,46 @@ def page_previous_chats():
     else:
         st.error("Could not retrieve previous chats.")
 
+# Page 4: Upload Document and Process
+def page_upload_doc():
+    st.title("Upload Document")
+
+    # Upload file
+    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt", "csv", "xlsx"])
+
+    if uploaded_file is not None:
+        # Send file to upload API
+        with st.spinner("Uploading file..."):
+            files = {"file": uploaded_file}
+            response = requests.post("https://akshatchatbot.ogesone.com/upload/uploadDoc", files=files)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                saved_path = response_data.get("file_path", "")
+                st.success(f"File uploaded successfully! Saved at: {saved_path}")
+
+                # Now process the document with the `/processDoc` endpoint
+                with st.spinner("Processing document..."):
+                    process_payload = {"data": saved_path}
+                    process_response = requests.post("https://akshatchatbot.ogesone.com/upload/processDoc", json=process_payload)
+
+                    if process_response.status_code == 200:
+                        st.success("Document processed successfully!")
+                        st.write("Response from API:", process_response.json())
+                    else:
+                        st.error(f"Error: Could not process the document. Status code: {process_response.status_code}")
+            else:
+                st.error(f"Error: Could not upload the file. Status code: {response.status_code}")
+
 # Main navigation
 st.sidebar.title("Navigation")
-page = st.sidebar.selectbox("Choose a page", ["Enter Web URLs", "Chat", "Previous Chats"])
+page = st.sidebar.selectbox("Choose a page", ["Enter Web URLs", "Chat", "Previous Chats", "Upload Document"])
 
 if page == "Enter Web URLs":
     page_urls()
 elif page == "Chat":
     page_chat()
-else:
+elif page == "Previous Chats":
     page_previous_chats()
+else:
+    page_upload_doc()

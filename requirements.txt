@@ -16,3 +16,4 @@ pinecone
 sentence-transformers
 langchain_pinecone
 langgraph
+pypdf-5.0.1
