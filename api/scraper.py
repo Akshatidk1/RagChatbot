@@ -18,7 +18,7 @@ def web_to_vectordb(url_list):
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
         splits = text_splitter.split_documents(doc)
         PineconeVectorStore.from_documents(splits,embeddings,index_name = index_name)
-        return {"response":"Data Base Updated"}
+        return {"error": False,"response":"Data Base Updated"}
     except Exception as e:
         print('Error on line {}'.format(sys.exc_info()[-1].tb_lineno), type(e).__name__, e)
         return {"error": True, 'message': f'Error: {str(e)}'}

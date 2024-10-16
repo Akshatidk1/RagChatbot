@@ -3,8 +3,6 @@ import requests
 
 # Page 1: Enter Web URLs
 def page_urls():
-    st.title("Enter Web URLs")
-
     # Section for entering web URLs
     url_list = []
     st.write("You can enter up to 5 URLs.")
@@ -13,14 +11,11 @@ def page_urls():
         if url_input:
             url_list.append(url_input)
 
-    # Optional: Token for API
-    token = st.text_input("Enter Token (Optional)", type="password", key="token_input")
-
     # Send URLs to the scraping API
     if st.button("Save"):
         if url_list:
             # Send request to scrapeWeb API
-            payload = {"data": url_list, "token": token}
+            payload = {"data": url_list}
             response = requests.post("http://127.0.0.1:8000/web/scrapeWeb", json=payload)
 
             if response.status_code == 200:

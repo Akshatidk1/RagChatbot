@@ -3,7 +3,6 @@ import requests
 
 # Page 3: Show Previous Chats
 def page_previous_chats():
-    st.title("📜 Previous Chats")
 
     # Fetch previous chat data from API (Replace with your actual API endpoint)
     response = requests.get("http://127.0.0.1:8000/previous_chats")

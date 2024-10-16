@@ -208,5 +208,33 @@
             "type": "ai",
             "content": "Akshat Kumar Nishad is an experienced Data Scientist and Machine Learning Engineer with expertise in statistical analysis, machine learning, and natural language processing. He excels at transforming complex data into actionable insights using various tools and technologies like SQL, Python, and advanced ML frameworks. He is also proficient in cloud platforms like AWS, demonstrating his commitment to staying current with emerging trends to deliver cutting-edge solutions. \n"
         }
+    ],
+    "krishna_ji": [
+        {
+            "type": "human",
+            "content": "hi"
+        },
+        {
+            "type": "ai",
+            "content": "This document describes interactions and element references within a system or process. It details how different elements interact with each other through filters.  Without further context or a specific question, I cannot provide a more concise answer. \n"
+        },
+        {
+            "type": "human",
+            "content": "who is Akshat"
+        },
+        {
+            "type": "ai",
+            "content": "Akshat Kumar Nishad is an experienced Data Scientist and Machine Learning Engineer. He has a proven track record in statistical analysis, machine learning, and natural language processing, transforming complex data into actionable insights. His expertise includes using various tools and technologies like SQL, Python, advanced ML frameworks, AWS SageMaker, and more. \n"
+        }
+    ],
+    "new_chat": [
+        {
+            "type": "human",
+            "content": "Tell me about indian economy"
+        },
+        {
+            "type": "ai",
+            "content": "The Indian economy is largely driven by domestic consumption and is a mixture of traditional agrarian practices and a rapidly growing service sector. Although a major manufacturing hub, India faces challenges such as unemployment, income inequality, and low social welfare spending. Historically a global economic leader, India is now characterized by its status as a developing economy with high growth potential. \n"
+        }
     ]
 }

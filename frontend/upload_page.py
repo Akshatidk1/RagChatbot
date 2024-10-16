@@ -3,8 +3,6 @@ import requests
 
 # Page 4: Upload Document and Process
 def page_upload_doc():
-    st.title("Upload Document")
-
     # Upload file
     uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt", "xlsx", "pptx"])
 

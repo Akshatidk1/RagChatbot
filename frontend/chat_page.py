@@ -35,10 +35,8 @@ st.markdown("""
         border-radius: 8px;
         max-width: 80%;
     }
-    .profile-img {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
+    .profile-emoji {
+        font-size: 2em;
         margin-right: 10px;
     }
     </style>
@@ -57,8 +55,6 @@ scroll_js = """
 
 # Page 2: Chat with AI
 def page_chat():
-    st.title("💬 Chat with AI")
-    
     # Prompt for session name
     session_name = st.text_input("Enter your Session Name:", key="session_name")
 
@@ -70,12 +66,12 @@ def page_chat():
     if session_name:
         st.markdown("<div class='chat-container' id='chat-container'>", unsafe_allow_html=True)
         
-        # Display the chat history with profile images
+        # Display the chat history with emojis as profile indicators
         for message in st.session_state['messages']:
             if message['role'] == 'user':
                 st.markdown(f"""
                     <div class="message-row">
-                        <img src="./assets/ai.jpg" class="profile-img"/>
+                        <span class="profile-emoji">👤</span>
                         <div class="user-message">
                             {message['text']}
                         </div>
@@ -84,7 +80,7 @@ def page_chat():
             else:
                 st.markdown(f"""
                     <div class="message-row">
-                        <img src="./assets/logo.png" class="profile-img"/>
+                        <span class="profile-emoji">🤖</span>
                         <div class="ai-message">
                             {message['text']}
                         </div>
