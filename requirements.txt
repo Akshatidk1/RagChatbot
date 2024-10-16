@@ -19,3 +19,9 @@ langgraph
 pypdf-5.0.1
 docx2txt
 python-multipart
+unstructured
+python-magic
+python-pptx
+langchain-community 
+unstructured 
+openpyxl

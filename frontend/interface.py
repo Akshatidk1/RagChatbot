@@ -102,7 +102,7 @@ def page_upload_doc():
     st.title("Upload Document")
 
     # Upload file
-    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt", "csv", "xlsx"])
+    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt", "xlsx" , "pptx"])
 
     if uploaded_file is not None:
         # Send file to upload API

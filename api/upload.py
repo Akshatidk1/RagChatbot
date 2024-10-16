@@ -26,6 +26,7 @@ def doc_to_vectordb(data):
         # Loop through files in the directory
         for filename in os.listdir(UPLOAD_DIRECTORY):
             file_path = os.path.join(UPLOAD_DIRECTORY, filename)
+            print(file_path)
             if os.path.isfile(file_path):
                 # Determine file type and use the appropriate loader
                 if filename.endswith(".pdf"):
@@ -44,6 +45,7 @@ def doc_to_vectordb(data):
 
                 # Load the document
                 doc = loader.load()
+                print(doc)
                 docs.extend(doc) 
                 
                 # Split documents into chunks

@@ -122,5 +122,73 @@
             "type": "ai",
             "content": "Please provide me with some context about \"Akshat.\" I need more information to answer your question. Without context, I don't know who Akshat is. \n"
         }
+    ],
+    "knowledgebase_akshat": [
+        {
+            "type": "human",
+            "content": "what do Akshat does"
+        },
+        {
+            "type": "ai",
+            "content": "Akshat Kumar Nishad is an experienced Data Scientist and Machine Learning Engineer. He specializes in transforming complex data into actionable insights using various tools and technologies, including SQL, Python, and advanced ML frameworks. His expertise lies in AI model development, pipeline design, and real-time dashboard creation. \n"
+        },
+        {
+            "type": "human",
+            "content": "tell me his contact name "
+        },
+        {
+            "type": "ai",
+            "content": "Akshat Kumar Nishad's email address is akshatrajsahani@gmail.com. \n"
+        },
+        {
+            "type": "human",
+            "content": "tell me his contact number"
+        },
+        {
+            "type": "ai",
+            "content": "Akshat Kumar Nishad's phone number is +91-7004235263. \n"
+        },
+        {
+            "type": "human",
+            "content": "Is he good fit for the role of ai/ml  engineer"
+        },
+        {
+            "type": "ai",
+            "content": "Based on his experience with machine learning, deep learning, and AI model development, Akshat Kumar Nishad appears to be a good fit for an AI/ML Engineer role. He also has experience with relevant tools and technologies, further strengthening his suitability. \n"
+        },
+        {
+            "type": "human",
+            "content": "what skillset does he have "
+        },
+        {
+            "type": "ai",
+            "content": "Akshat has a strong skillset in programming languages like Python and SQL, machine learning frameworks like TensorFlow and XGBoost, and deep learning techniques.  He is also proficient in data analysis and visualization tools, web frameworks, containerization, workflow automation, and cloud platforms. \n"
+        },
+        {
+            "type": "human",
+            "content": "list down all his skills please"
+        },
+        {
+            "type": "ai",
+            "content": "Here are Akshat Kumar Nishad's skills based on the provided text:\n\n**Programming Languages:** Python, SQL\n**Machine Learning:** TensorFlow, XGBoost, Random Forest, Decision Trees, Hugging Face\n**Deep Learning:** Artificial Neural Networks (ANN), NLP\n**Data Analysis & Visualization:** pandas, NumPy, Matplotlib, Seaborn, Power BI\n**Web Frameworks:** FastAPI, Flask\n**Containerization:** Docker\n**Workflow & Automation:** Apache Airflow, Databricks, SAS Enterprise Miner, SAS Visual Analytics\n**Cloud Platforms:** AWS (SageMaker, S3)\n**Operating Systems:** Linux, Windows\n**Statistical Analysis Tools:** SAS, R \n"
+        }
+    ],
+    "media_net": [
+        {
+            "type": "human",
+            "content": "what does media.net do"
+        },
+        {
+            "type": "ai",
+            "content": "Media.net works with publishers to optimize their advertising revenue. They help publishers move to server-side bidding, develop contextual advertising solutions, and offer pre-bid fraud protection. Media.net also donates code to IAB Tech Lab to improve industry standards. \n"
+        },
+        {
+            "type": "human",
+            "content": "what they are hiring for"
+        },
+        {
+            "type": "ai",
+            "content": "Based on the provided information, Media.net, under their recruitment brand Directi, is hiring for an **Analyst \u2013 Research** role. This role focuses on enhancing customer portfolio performance in internet advertising by optimizing domain names and analyzing website content and keywords. \n"
+        }
     ]
 }
