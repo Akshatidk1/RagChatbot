@@ -17,3 +17,5 @@ sentence-transformers
 langchain_pinecone
 langgraph
 pypdf-5.0.1
+docx2txt
+python-multipart

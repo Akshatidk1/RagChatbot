@@ -21,7 +21,7 @@ def page_urls():
         if url_list:
             # Send request to scrapeWeb API
             payload = {"data": url_list, "token": token}
-            response = requests.post("https://akshatchatbot.ogesone.com/web/scrapeWeb", json=payload)
+            response = requests.post("http://127.0.0.1:8000/web/scrapeWeb", json=payload)
 
             if response.status_code == 200:
                 st.success("URLs have been saved and processed!")
@@ -54,7 +54,7 @@ def page_chat():
 
             # Function to send message to FastAPI
             payload = {"session_id": session_name, "user_input": user_input}
-            response = requests.post("https://akshatchatbot.ogesone.com/rag/chat", json=payload)
+            response = requests.post("http://127.0.0.1:8000/rag/chat", json=payload)
 
             if response.status_code == 200:
                 response_data = response.json()
@@ -80,7 +80,7 @@ def page_previous_chats():
     st.title("Previous Chats")
 
     # Fetch previous chat data from API (Replace with your actual API endpoint)
-    response = requests.get("https://akshatchatbot.ogesone.com/previous_chats")
+    response = requests.get("http://127.0.0.1:8000/previous_chats")
     
     if response.status_code == 200:
         previous_chats = response.json()
@@ -108,7 +108,7 @@ def page_upload_doc():
         # Send file to upload API
         with st.spinner("Uploading file..."):
             files = {"file": uploaded_file}
-            response = requests.post("https://akshatchatbot.ogesone.com/upload/uploadDoc", files=files)
+            response = requests.post("http://127.0.0.1:8000/upload/uploadDoc", files=files)
             
             if response.status_code == 200:
                 response_data = response.json()
@@ -118,7 +118,7 @@ def page_upload_doc():
                 # Now process the document with the `/processDoc` endpoint
                 with st.spinner("Processing document..."):
                     process_payload = {"data": saved_path}
-                    process_response = requests.post("https://akshatchatbot.ogesone.com/upload/processDoc", json=process_payload)
+                    process_response = requests.post("http://127.0.0.1:8000/upload/processDoc", json=process_payload)
 
                     if process_response.status_code == 200:
                         st.success("Document processed successfully!")
