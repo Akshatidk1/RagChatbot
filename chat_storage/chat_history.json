@@ -190,5 +190,23 @@
             "type": "ai",
             "content": "Based on the provided information, Media.net, under their recruitment brand Directi, is hiring for an **Analyst \u2013 Research** role. This role focuses on enhancing customer portfolio performance in internet advertising by optimizing domain names and analyzing website content and keywords. \n"
         }
+    ],
+    "akshat_nishad_new": [
+        {
+            "type": "human",
+            "content": "who is Akshat kumar nishad"
+        },
+        {
+            "type": "ai",
+            "content": "Akshat Kumar Nishad is an experienced Data Scientist and Machine Learning Engineer. He has a proven track record in statistical analysis, machine learning, and natural language processing, transforming complex data into actionable insights.  He is skilled in various technologies including SQL, Python, and advanced ML frameworks, and has experience with cloud platforms like AWS (SageMaker, S3). \n"
+        },
+        {
+            "type": "human",
+            "content": "who is Akshat kumar nishad?"
+        },
+        {
+            "type": "ai",
+            "content": "Akshat Kumar Nishad is an experienced Data Scientist and Machine Learning Engineer with expertise in statistical analysis, machine learning, and natural language processing. He excels at transforming complex data into actionable insights using various tools and technologies like SQL, Python, and advanced ML frameworks. He is also proficient in cloud platforms like AWS, demonstrating his commitment to staying current with emerging trends to deliver cutting-edge solutions. \n"
+        }
     ]
 }

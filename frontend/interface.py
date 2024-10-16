@@ -1,142 +1,98 @@
 import streamlit as st
 import requests
+from web_url import *
+from chat_page import *
+from previous_chat import *
+from upload_page import *
 
-# Page 1: Enter Web URLs
-def page_urls():
-    st.title("Enter Web URLs")
+# Apply custom styling with CSS
+st.markdown("""
+    <style>
+    /* Main page styling */
+    .main {
+        background-color: #F0F2F6;
+        padding: 20px;
+    }
+    /* Sidebar styling */
+    .sidebar .sidebar-content {
+        background-color: #292b2c;
+        color: white;
+    }
+    /* Title and header styles */
+    h1, h2 {
+        color: #1F4E79;
+        font-family: 'Segoe UI', sans-serif;
+    }
+    /* Button styles */
+    .stButton button {
+        background-color: #4CAF50;
+        color: white;
+        font-weight: bold;
+        border-radius: 8px;
+    }
+    .stButton button:hover {
+        background-color: #45a049;
+    }
+    /* Expander styling */
+    .streamlit-expanderHeader {
+        font-size: 16px;
+        font-weight: bold;
+        color: #1F4E79;
+    }
+    /* Footer styling */
+    footer {
+        font-size: 12px;
+        text-align: center;
+        color: #888;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
-    # Section for entering web URLs
-    url_list = []
-    st.write("You can enter up to 5 URLs.")
-    for i in range(5):
-        url_input = st.text_input(f"Enter URL {i + 1}", key=f"url_{i}")
-        if url_input:
-            url_list.append(url_input)
-
-    # Optional: Token for API
-    token = st.text_input("Enter Token (Optional)", type="password", key="token_input")
-
-    # Send URLs to the scraping API
-    if st.button("Save"):
-        if url_list:
-            # Send request to scrapeWeb API
-            payload = {"data": url_list, "token": token}
-            response = requests.post("http://127.0.0.1:8000/web/scrapeWeb", json=payload)
-
-            if response.status_code == 200:
-                st.success("URLs have been saved and processed!")
-                st.write("Entered URLs:", url_list)
-                st.write("Response from API:", response.json())
-            else:
-                st.error(f"Error: Could not submit URLs. Status code: {response.status_code}")
-        else:
-            st.error("Please enter at least one URL.")
-
-# Page 2: Chat with FastAPI
-def page_chat():
-    st.title("Chat with AI")
-
-    # Prompt for session name
-    session_name = st.text_input("Enter your Session Name:", key="session_name")
-
-    # Session state to store chat history
-    if 'messages' not in st.session_state:
-        st.session_state['messages'] = []
-
-    # Only show the chat interface if the session name is provided
-    if session_name:
-        # Input field for user message
-        user_input = st.text_input("You: ", key="user_input")
-
-        if user_input:
-            # Save user input to session state
-            st.session_state['messages'].append({"role": "user", "text": user_input})
-
-            # Function to send message to FastAPI
-            payload = {"session_id": session_name, "user_input": user_input}
-            response = requests.post("http://127.0.0.1:8000/rag/chat", json=payload)
-
-            if response.status_code == 200:
-                response_data = response.json()
-                ai_response = response_data.get("response", "")
-            else:
-                ai_response = "Error: Could not retrieve response from AI."
-
-            # Save AI response to session state
-            st.session_state['messages'].append({"role": "ai", "text": ai_response})
-
-        # Display the chat history
-        st.write("### Chat History")
-        for message in st.session_state['messages']:
-            if message['role'] == 'user':
-                st.write(f"**You**: {message['text']}")
-            else:
-                st.write(f"**AI**: {message['text']}")
-    else:
-        st.warning("Please enter a Session Name to start chatting.")
-
-# Page 3: Show Previous Chats
-def page_previous_chats():
-    st.title("Previous Chats")
-
-    # Fetch previous chat data from API (Replace with your actual API endpoint)
-    response = requests.get("http://127.0.0.1:8000/previous_chats")
-    
-    if response.status_code == 200:
-        previous_chats = response.json()
-
-        # Display previous chats grouped by session names
-        for session_name, conversations in previous_chats.items():
-            st.subheader(session_name)
-            for message in conversations:
-                if message['type'] == "human":
-                    st.write(f"**You**: {message['content']}")
-                else:
-                    st.write(f"**AI**: {message['content']}")
-            st.write("---")  # Separator for each session
-    else:
-        st.error("Could not retrieve previous chats.")
-
-# Page 4: Upload Document and Process
-def page_upload_doc():
-    st.title("Upload Document")
-
-    # Upload file
-    uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx", "txt", "xlsx" , "pptx"])
-
-    if uploaded_file is not None:
-        # Send file to upload API
-        with st.spinner("Uploading file..."):
-            files = {"file": uploaded_file}
-            response = requests.post("http://127.0.0.1:8000/upload/uploadDoc", files=files)
-            
-            if response.status_code == 200:
-                response_data = response.json()
-                saved_path = response_data.get("file_path", "")
-                st.success(f"File uploaded successfully! Saved at: {saved_path}")
-
-                # Now process the document with the `/processDoc` endpoint
-                with st.spinner("Processing document..."):
-                    process_payload = {"data": saved_path}
-                    process_response = requests.post("http://127.0.0.1:8000/upload/processDoc", json=process_payload)
-
-                    if process_response.status_code == 200:
-                        st.success("Document processed successfully!")
-                        st.write("Response from API:", process_response.json())
-                    else:
-                        st.error(f"Error: Could not process the document. Status code: {process_response.status_code}")
-            else:
-                st.error(f"Error: Could not upload the file. Status code: {response.status_code}")
-
-# Main navigation
+# Sidebar Navigation
 st.sidebar.title("Navigation")
+st.sidebar.markdown("Choose a section to navigate to:")
 page = st.sidebar.selectbox("Choose a page", ["Enter Web URLs", "Chat", "Previous Chats", "Upload Document"])
 
+# Add a logo or image (optional) for a more polished UI
+# st.sidebar.image("./assets/logo.png", use_column_width=True)  # Adjust the path as per your app's assets
+
+# Display custom footer in sidebar
+st.sidebar.markdown("---")
+st.sidebar.markdown("Built with 💻 by Akshat for katonic.ai")
+
+# Enhanced Page 1: Enter Web URLs
 if page == "Enter Web URLs":
+    st.title("🌐 Enter Web URLs")
+    st.subheader("Add up to 5 URLs and submit for processing")
     page_urls()
+
+# Enhanced Page 2: Chat with AI
 elif page == "Chat":
+    st.title("💬 Chat with AI")
+    st.subheader("Start a session and chat with the AI")
+    with st.expander("Chat Instructions"):
+        st.write("""
+        - Enter a session name to start chatting.
+        - Your chat history will be saved under the session name.
+        """)
     page_chat()
+
+# Enhanced Page 3: Previous Chats
 elif page == "Previous Chats":
+    st.title("📜 Previous Chats")
+    st.subheader("Review your past conversations")
+    st.markdown("Here you can browse through all previously saved chat sessions.")
     page_previous_chats()
+
+# Enhanced Page 4: Upload Document
 else:
+    st.title("📄 Upload Document")
+    st.subheader("Upload and process files (PDF, DOCX, TXT, XLSX, PPTX)")
     page_upload_doc()
+
+# Optional footer for the main page
+st.markdown("""
+    <footer>
+    © 2024 Your Team - All rights reserved.
+    </footer>
+""", unsafe_allow_html=True)
