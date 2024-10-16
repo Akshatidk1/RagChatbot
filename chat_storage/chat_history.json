@@ -236,5 +236,25 @@
             "type": "ai",
             "content": "The Indian economy is largely driven by domestic consumption and is a mixture of traditional agrarian practices and a rapidly growing service sector. Although a major manufacturing hub, India faces challenges such as unemployment, income inequality, and low social welfare spending. Historically a global economic leader, India is now characterized by its status as a developing economy with high growth potential. \n"
         }
+    ],
+    "awerghjkl;'": [
+        {
+            "type": "human",
+            "content": "indian economy"
+        },
+        {
+            "type": "ai",
+            "content": "In 2009, India was the world's eighth-largest producer of minerals by value. By 2013, India mined and processed 89 different minerals, with the majority being non-fuel related. The mining sector in India contributes 11% to the country's industrial GDP and 2.5% to the total GDP. \n"
+        }
+    ],
+    "asdfghjhkl": [
+        {
+            "type": "human",
+            "content": "explain about it in detail indian economy"
+        },
+        {
+            "type": "ai",
+            "content": "The Indian economy is the world's fifth-largest by nominal GDP and the third-largest by purchasing power parity. For much of its history, India had the largest economy in the world, but after independence, protectionist policies led to slower growth until economic liberalization in 1991. Since then, India has become one of the world's fastest-growing economies. \n"
+        }
     ]
 }

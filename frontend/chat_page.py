@@ -56,7 +56,7 @@ scroll_js = """
 # Page 2: Chat with AI
 def page_chat():
     # Prompt for session name
-    session_name = st.text_input("Enter your Session Name:", key="session_name")
+    session_name = st.text_input("Enter your Session Name:", key="session_name_input")
 
     # Session state to store chat history
     if 'messages' not in st.session_state:
@@ -64,37 +64,49 @@ def page_chat():
 
     # Only show the chat interface if the session name is provided
     if session_name:
-        st.markdown("<div class='chat-container' id='chat-container'>", unsafe_allow_html=True)
+        chat_container = st.empty()  # Placeholder for chat messages
         
-        # Display the chat history with emojis as profile indicators
-        for message in st.session_state['messages']:
-            if message['role'] == 'user':
-                st.markdown(f"""
-                    <div class="message-row">
-                        <span class="profile-emoji">👤</span>
-                        <div class="user-message">
-                            {message['text']}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-            else:
-                st.markdown(f"""
-                    <div class="message-row">
-                        <span class="profile-emoji">🤖</span>
-                        <div class="ai-message">
-                            {message['text']}
-                        </div>
-                    </div>
-                """, unsafe_allow_html=True)
-        
-        st.markdown("</div>", unsafe_allow_html=True)
+        # Function to display chat messages dynamically
+        def render_chat():
+            with chat_container.container():
+                st.markdown("<div class='chat-container' id='chat-container'>", unsafe_allow_html=True)
+
+                # Display the chat history with emojis as profile indicators
+                for message in st.session_state['messages']:
+                    if message['role'] == 'user':
+                        st.markdown(f"""
+                            <div class="message-row">
+                                <span class="profile-emoji">👤</span>
+                                <div class="user-message">
+                                    {message['text']}
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                            <div class="message-row">
+                                <span class="profile-emoji">🤖</span>
+                                <div class="ai-message">
+                                    {message['text']}
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+
+                st.markdown("", unsafe_allow_html=True)
+                components.html(scroll_js, height=0)  # Ensure chat scrolls to bottom
+
+        # Initially render chat messages
+        render_chat()
 
         # Input field for user message
-        user_input = st.text_input("You: ", key="user_input")
+        user_input = st.text_input("You: ", key="user_input_text")
 
         if user_input:
             # Save user input to session state
             st.session_state['messages'].append({"role": "user", "text": user_input})
+
+            # Re-render the chat immediately to show user input
+            render_chat()
 
             # Function to send message to FastAPI
             payload = {"session_id": session_name, "user_input": user_input}
@@ -109,8 +121,11 @@ def page_chat():
             # Save AI response to session state
             st.session_state['messages'].append({"role": "ai", "text": ai_response})
 
-            # Scroll to the bottom after new message
-            components.html(scroll_js, height=0)
+            # Re-render the chat after AI response
+            render_chat()
 
     else:
         st.warning("Please enter a Session Name to start chatting.")
+
+# Call the page chat function to render the page
+page_chat()
