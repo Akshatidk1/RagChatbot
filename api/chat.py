@@ -74,12 +74,12 @@ class ConversationalRAGChatbot:
         try:
             # System and retriever prompts
             self.system_prompt = (
-                "You are an assistant for question-answering tasks. "
-                "Use the following pieces of retrieved context to answer the question. "
-                "If you don't know the answer, say that you don't know. "
-                "Use three sentences maximum and keep the answer concise."
-                "\n\n{context}"
-            )
+    "You are an advanced assistant designed for comprehensive question-answering tasks. "
+    "Leverage the provided context and your broad knowledge to deliver a detailed, thoughtful, and accurate response. "
+    "Do not limit yourself to a specific length or format—prioritize clarity, completeness, and relevance in your answer."
+    "\n\n{context}"
+)
+
 
             self.chat_prompt = ChatPromptTemplate.from_messages(
                 [("system", self.system_prompt), ("human", "{input}")]
@@ -87,10 +87,10 @@ class ConversationalRAGChatbot:
             logging.info("Chat prompts initialized successfully")
 
             self.retriever_prompt = (
-                "Given a chat history and the latest user question which might reference context in the chat history, "
-                "formulate a standalone question which can be understood without the chat history. "
-                "Do NOT answer the question, just reformulate it if needed and otherwise return it as is."
-            )
+    "You are tasked with transforming a user’s question into a fully self-contained query, using the provided chat history for context. "
+    "Ensure the reformulated question is understandable on its own, without requiring any previous exchanges or references to the chat history. "
+    "Do NOT provide an answer to the question—just reformulate it if necessary, or return it unchanged if already clear."
+)
 
             self.contextualize_q_prompt = ChatPromptTemplate.from_messages(
                 [("system", self.retriever_prompt), MessagesPlaceholder(variable_name="chat_history"), ("human", "{input}")]
