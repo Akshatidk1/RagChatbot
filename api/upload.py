@@ -45,7 +45,6 @@ def doc_to_vectordb(data):
 
                 # Load the document
                 doc = loader.load()
-                print(doc)
                 docs.extend(doc) 
                 
                 # Split documents into chunks

@@ -106,7 +106,7 @@ def page_chat():
 
             # Function to send message to FastAPI
             payload = {"session_id": session_name, "user_input": user_input}
-            response = requests.post("https://ragchat.ogesone.com/rag/chat", json=payload)
+            response = requests.post("http://127.0.0.1:8000/rag/chat", json=payload)
 
             if response.status_code == 200:
                 response_data = response.json()
