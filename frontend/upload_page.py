@@ -10,7 +10,7 @@ def page_upload_doc():
         # Send file to upload API
         with st.spinner("Uploading file..."):
             files = {"file": uploaded_file}
-            response = requests.post("http://127.0.0.1:8000/upload/uploadDoc", files=files)
+            response = requests.post("https://ragchat.ogesone.com/upload/uploadDoc", files=files)
 
             if response.status_code == 200:
                 response_data = response.json()
@@ -24,7 +24,7 @@ def page_upload_doc():
                     # Now process the document with the `/processDoc` endpoint
                     with st.spinner("Processing document..."):
                         process_payload = {"data": saved_path}
-                        process_response = requests.post("http://127.0.0.1:8000/upload/processDoc", json=process_payload)
+                        process_response = requests.post("https://ragchat.ogesone.com/upload/processDoc", json=process_payload)
 
                         if process_response.status_code == 200:
                             process_data = process_response.json()
