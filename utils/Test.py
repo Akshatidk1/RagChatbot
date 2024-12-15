@@ -1,49 +1,128 @@
-024-12-15 21:57:44.216 Uncaught app execution
-Traceback (most recent call last):
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 88, in exec_func_with_error_handling
-    result = func()
-             ^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 579, in code_to_exec
-    exec(code, module.__dict__)
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\app.py", line 23, in <module>
-    st.session_state.agents = initialize_agents(
-                              ^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\agents.py", line 19, in initialize_agents
-    pandas_agent = create_pandas_dataframe_agent(model, data, verbose=True, memory=memory)
-                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain_experimental\agents\agent_toolkits\pandas\base.py", line 249, in create_pandas_dataframe_agent
-    raise ValueError(
-ValueError: This agent relies on access to a python repl tool which can execute arbitrary code. This can be dangerous and requires a specially sandboxed environment to be safely used. Please read the security notice in the doc-string of this function. You must opt-in to use this functionality by setting allow_dangerous_code=True.For general security guidelines, please see: https://python.langchain.com/docs/security/ 
-C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain_experimental\agents\agent_toolkits\pandas\base.py:283: UserWarning: Received additional kwargs {'memory': ConversationBufferMemory(chat_memory=InMemoryChatMessageHistory(messages=[]), return_messages=True, memory_key='chat_history')} which are no longer supported.
-  warnings.warn(
-C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\agents.py:33: LangChainDeprecationWarning: LangChain agents will continue to be supported, but it is recommended for new use cases to be built with LangGraph. LangGraph offers a more flexible and full-featured framework for building agents, including support for tool-calling, persistence of state, and human-in-the-loop workflows. See LangGraph documentation for more details: https://langchain-ai.github.io/langgraph/. Refer here for its pre-built ReAct agent: https://langchain-ai.github.io/langgraph/how-tos/create-react-agent/
-  return initialize_agent(tools, model, agent="zero-shot-react-description", verbose=True, prompt=chat_prompt_template)
-2024-12-15 21:58:24.808 Uncaught app execution
-Traceback (most recent call last):
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\streamlit\runtime\scriptrunner\exec_code.py", line 88, in exec_func_with_error_handling
-    result = func()
-             ^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\streamlit\runtime\scriptrunner\script_runner.py", line 579, in code_to_exec
-    exec(code, module.__dict__)
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\app.py", line 23, in <module>
-    st.session_state.agents = initialize_agents(
-                              ^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\agents.py", line 33, in initialize_agents
-    return initialize_agent(tools, model, agent="zero-shot-react-description", verbose=True, prompt=chat_prompt_template)
-           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain_core\_api\deprecation.py", line 182, in warning_emitting_wrapper
-    return wrapped(*args, **kwargs)
-           ^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain\agents\initialize.py", line 73, in initialize_agent
-    agent_obj = agent_cls.from_llm_and_tools(
-                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain\agents\mrkl\base.py", line 138, in from_llm_and_tools
-    cls._validate_tools(tools)
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain\agents\mrkl\base.py", line 162, in _validate_tools
-    validate_tools_single_input(cls.__name__, tools)
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\langchain\agents\utils.py", line 17, in validate_tools_single_input
-    if not tool.is_single_input:
-           ^^^^^^^^^^^^^^^^^^^^
-  File "C:\Users\UZ731DM\OneDrive - EY\Documents\log_price_forecast\myevn\Lib\site-packages\pydantic\main.py", line 856, in __getattr__     
-    raise AttributeError(f'{type(self).__name__!r} object has no attribute {item!r}')
-AttributeError: 'AgentExecutor' object has no attribute 'is_single_input'
+The error you’re encountering results from two separate issues. Let me address them systematically:
+
+1. allow_dangerous_code=True Requirement
+
+The create_pandas_dataframe_agent function explicitly requires enabling allow_dangerous_code for security reasons. This option allows the agent to execute arbitrary Python code, which can be risky.
+
+Fix:
+
+Enable allow_dangerous_code when creating the pandas_agent.
+
+from langchain_experimental.agents.agent_toolkits.pandas.base import create_pandas_dataframe_agent
+
+# Modify the initialization of the Pandas agent
+def initialize_pandas_agent(model, data, memory):
+    """Initialize the Pandas agent."""
+    return create_pandas_dataframe_agent(
+        llm=model,
+        df=data,
+        verbose=True,
+        allow_dangerous_code=True,  # Required to execute arbitrary code
+        memory=memory
+    )
+
+2. AgentExecutor Attribute Error
+
+The error AttributeError: 'AgentExecutor' object has no attribute 'is_single_input' occurs because one of the tools used by the agent doesn’t conform to the expected input/output structure for LangChain agents. The root cause lies in tool initialization or compatibility with the initialize_agent function.
+
+Fix:
+
+Validate that all tools comply with the single-input requirement and update their structure accordingly.
+
+Update your initialize_agents function:
+
+from langchain.agents import Tool, initialize_agent
+from langchain.prompts import ChatPromptTemplate
+from langchain.memory import ConversationBufferMemory
+
+def initialize_agents(model, tools, memory):
+    """Initialize the agents."""
+    chat_prompt_template = ChatPromptTemplate.from_messages([
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "human", "content": "{input}"}
+    ])
+    
+    # Ensure tools conform to single-input requirements
+    tools = [
+        Tool(
+            name=tool.name,
+            func=tool.func,
+            description=tool.description
+        )
+        for tool in tools
+    ]
+
+    # Initialize the agent
+    return initialize_agent(
+        tools=tools,
+        llm=model,
+        agent="zero-shot-react-description",
+        verbose=True,
+        prompt=chat_prompt_template,
+        memory=memory
+    )
+
+Warnings from LangChain
+
+The warning about using LangGraph indicates that LangChain recommends migrating to its new framework, LangGraph, for agent-based systems. However, this is optional for now, as LangChain agents are still supported.
+
+Streamlined Code Architecture
+
+Here’s the revised structure for your agent initialization and Pandas agent integration:
+
+agents.py
+
+from langchain.agents import Tool
+from langchain.agents.agent_toolkits.pandas.base import create_pandas_dataframe_agent
+from langchain.prompts import ChatPromptTemplate
+from langchain.memory import ConversationBufferMemory
+from langchain.agents import initialize_agent
+
+
+def initialize_pandas_agent(model, data, memory):
+    """Initialize the Pandas agent."""
+    return create_pandas_dataframe_agent(
+        llm=model,
+        df=data,
+        verbose=True,
+        allow_dangerous_code=True,  # Required for arbitrary Python execution
+        memory=memory
+    )
+
+
+def initialize_agents(model, tools, memory):
+    """Initialize the main agents."""
+    chat_prompt_template = ChatPromptTemplate.from_messages([
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "human", "content": "{input}"}
+    ])
+    
+    # Ensure tools conform to single-input requirements
+    tools = [
+        Tool(
+            name=tool.name,
+            func=tool.func,
+            description=tool.description
+        )
+        for tool in tools
+    ]
+
+    # Initialize the main agent
+    return initialize_agent(
+        tools=tools,
+        llm=model,
+        agent="zero-shot-react-description",
+        verbose=True,
+        prompt=chat_prompt_template,
+        memory=memory
+    )
+
+Key Updates
+	1.	allow_dangerous_code:
+	•	This is explicitly enabled for the Pandas agent.
+	2.	Tools Compatibility:
+	•	The tools now explicitly conform to LangChain’s requirements for input/output.
+	3.	Agent Prompt:
+	•	System messages and prompt templates have been explicitly defined for better results.
+
+If this doesn’t fully resolve the issue, let me know the exact tools and configuration you’re using, and I’ll provide further debugging steps!
