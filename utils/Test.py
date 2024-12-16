@@ -1,9 +1,4 @@
-Here’s an end-to-end chatbot implementation based on your requirements. It combines LangChain, Streamlit, and pandas to create a conversational chatbot that:
-	1.	Takes a CSV file as input.
-	2.	Allows for general conversational AI.
-	3.	Provides pandas-based dataset manipulation.
-	4.	Returns dataset statistics using a custom tool.
-	5.	Uses a vector database for embeddings to answer contextual questions.
+Here is an end-to-end chatbot implementation that uses a normal LangChain architecture where query classification and agent handling are dynamically managed. It avoids explicit conditional handling but ensures that the appropriate tools (e.g., pandas agent, custom stats agent) are invoked based on the input. This design leverages tool binding with the LLM to allow it to decide which tool to use naturally.
 
 File Structure
 
@@ -15,10 +10,9 @@ chatbot/
 │   ├── llm_config.py     # LLM and embedding model configurations
 │   ├── vectordb_config.py # Vector DB configuration
 │
-├── agents/
-│   ├── __init__.py       # Agents package initialization
-│   ├── query_classifier.py # Query classification logic
-│   ├── pandas_agent.py   # Pandas agent logic
+├── tools/
+│   ├── __init__.py       # Tools package initialization
+│   ├── pandas_tool.py    # Pandas agent logic
 │   ├── stats_tool.py     # Custom stats tool for dataset
 │
 ├── utils/
@@ -32,77 +26,65 @@ File Details
 
 1. config/llm_config.py
 
-Configures the LLM and embedding model.
+Centralizes the LLM and embedding model configuration.
 
 from langchain_openai import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
 
-# Initialize the LLM
+# LLM initialization
 llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-# Initialize the embedding model
+# Embedding model initialization
 embedding_model = OpenAIEmbeddings()
 
 2. config/vectordb_config.py
 
-Sets up a vector database for storing and retrieving embeddings.
+Sets up the vector database for contextual conversation handling.
 
 from langchain.vectorstores import FAISS
 from langchain.schema import Document
 
-# Initialize the FAISS vector database
-vector_db = FAISS(embedding_model.embedding_function, index=None)
+# Vector database initialization
+vector_db = FAISS(embedding_function=embedding_model.embedding_function, index=None)
 
-# Function to add documents to the vector database
 def add_to_vector_db(data):
+    """
+    Adds textual data to the vector database for semantic search.
+    """
     documents = [Document(page_content=doc) for doc in data]
     vector_db.add_documents(documents)
 
-3. agents/query_classifier.py
+3. tools/pandas_tool.py
 
-Implements query classification logic.
-
-def classify_query(user_input):
-    """
-    Classifies the user's query into:
-    1. General Question
-    2. Pandas Manipulation
-    3. Dataset Stats
-    """
-    if "stats" in user_input.lower():
-        return "stats"
-    elif "pandas" in user_input.lower() or "filter" in user_input.lower():
-        return "pandas"
-    else:
-        return "general"
-
-4. agents/pandas_agent.py
-
-Handles dataset manipulation using pandas.
+Provides pandas-specific dataset manipulation functionality.
 
 from langchain.agents import tool
 import pandas as pd
 
 @tool
 def manipulate_dataset(csv_path: str, query: str):
-    """Applies the user-defined query on the dataset."""
+    """
+    Applies a pandas operation to the dataset based on the user query.
+    """
     try:
         df = pd.read_csv(csv_path)
-        result = eval(query)  # WARNING: Use `eval` cautiously. Prefer pandas query methods.
+        result = eval(query)  # WARNING: Use carefully in production
         return result.to_string()
     except Exception as e:
         return f"Error manipulating dataset: {str(e)}"
 
-5. agents/stats_tool.py
+4. tools/stats_tool.py
 
-Generates statistics for the dataset.
+Implements dataset statistics functionality.
 
 from langchain.agents import tool
 import pandas as pd
 
 @tool
 def dataset_stats(csv_path: str):
-    """Returns basic statistics of the dataset."""
+    """
+    Returns basic statistics about the uploaded dataset.
+    """
     try:
         df = pd.read_csv(csv_path)
         stats = {
@@ -115,96 +97,125 @@ def dataset_stats(csv_path: str):
     except Exception as e:
         return f"Error generating stats: {str(e)}"
 
-6. utils/file_handler.py
+5. utils/file_handler.py
 
-Handles file uploads and storage.
+Handles file uploads in Streamlit.
 
 import os
 
 def save_uploaded_file(uploaded_file):
-    """Saves the uploaded file to disk."""
+    """
+    Saves the uploaded file locally.
+    """
     file_path = os.path.join("uploaded_files", uploaded_file.name)
     with open(file_path, "wb") as f:
         f.write(uploaded_file.getbuffer())
     return file_path
 
-7. app.py
+6. app.py
 
-Main Streamlit app to bring everything together.
+The main Streamlit app integrates tools, LLM, and file handling.
 
 import streamlit as st
+from langchain.agents import AgentExecutor
 from config.llm_config import llm
 from config.vectordb_config import add_to_vector_db, vector_db
-from agents.query_classifier import classify_query
-from agents.pandas_agent import manipulate_dataset
-from agents.stats_tool import dataset_stats
+from tools.pandas_tool import manipulate_dataset
+from tools.stats_tool import dataset_stats
 from utils.file_handler import save_uploaded_file
 
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.agents.format_scratchpad.openai_tools import format_to_openai_tool_messages
+from langchain.agents.output_parsers.openai_tools import OpenAIToolsAgentOutputParser
+
+# Streamlit UI
 st.title("AI-Powered CSV Chatbot")
 
-# File upload
+# File upload section
 uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 
 if uploaded_file:
-    # Save the file and prepare vector DB
+    # Save file locally
     file_path = save_uploaded_file(uploaded_file)
-    st.write(f"Uploaded file saved at: {file_path}")
+    st.write(f"File successfully uploaded: {file_path}")
 
-    # Add CSV content to vector DB
+    # Add file content to vector DB
     with open(file_path, "r") as f:
         add_to_vector_db(f.readlines())
 
-    # Start conversation
-    st.write("Chatbot is ready to interact!")
+    # Define tools
+    tools = [manipulate_dataset, dataset_stats]
+
+    # Create prompt
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            ("system", "You are an assistant capable of answering questions and analyzing datasets."),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("user", "{input}"),
+            MessagesPlaceholder(variable_name="agent_scratchpad"),
+        ]
+    )
+
+    # Define agent
+    agent = (
+        {
+            "input": lambda x: x["input"],
+            "chat_history": lambda x: x["chat_history"],
+            "agent_scratchpad": lambda x: format_to_openai_tool_messages(x["intermediate_steps"]),
+        }
+        | prompt
+        | llm.bind_tools(tools)
+        | OpenAIToolsAgentOutputParser()
+    )
+
+    # Agent executor
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+
+    # Chat functionality
+    st.write("Chatbot ready for interaction!")
     chat_history = []
-    
+
     while True:
-        user_input = st.text_input("Ask a question or give a task:")
-
+        user_input = st.text_input("Ask a question:")
         if user_input:
-            # Classify query
-            query_type = classify_query(user_input)
-            
-            if query_type == "general":
-                # Handle general questions
-                response = llm.invoke(user_input)
-                st.write(response)
-            elif query_type == "pandas":
-                # Handle pandas queries
-                response = manipulate_dataset(csv_path=file_path, query=user_input)
-                st.write(response)
-            elif query_type == "stats":
-                # Handle dataset statistics
-                response = dataset_stats(csv_path=file_path)
-                st.write(response)
-            
-            # Update chat history
-            chat_history.append({"user": user_input, "bot": response})
+            result = agent_executor.invoke({"input": user_input, "chat_history": chat_history})
+            st.write(result["output"])
 
-8. requirements.txt
+            # Track conversation
+            chat_history.append({"user": user_input, "bot": result["output"]})
 
-streamlit
-langchain
-faiss-cpu
-openai
-pandas
+Explanation
+	1.	Dynamic Tool Usage:
+	•	Tools are bound to the LLM using llm.bind_tools(tools). This allows the LLM to invoke the correct tool automatically based on the user query.
+	2.	No Conditional Logic:
+	•	There is no explicit query classification or conditional handling. The LLM decides which tool to invoke (e.g., pandas_tool or stats_tool) based on the query context.
+	3.	Vector DB:
+	•	A FAISS vector database is initialized for storing dataset embeddings. This enables contextual understanding of the dataset for semantic searches.
+	4.	Streamlit:
+	•	Provides a user-friendly interface for file uploads and chatting.
 
-How It Works
-	1.	File Upload:
-	•	The user uploads a CSV file.
-	•	The app saves the file and prepares embeddings for the content.
-	2.	Chat:
-	•	Users can ask general questions, request pandas manipulations, or ask for dataset statistics.
-	•	The classify_query function determines which tool/agent to invoke.
-	3.	Tools:
-	•	manipulate_dataset: For pandas manipulations.
-	•	dataset_stats: For statistics about the dataset.
-	•	General LLM responses for other queries.
-	4.	Execution:
-	•	Streamlit handles the UI, while LangChain agents handle the logic.
+Run the Application
+	1.	Install dependencies:
 
-You can run the app with:
+pip install -r requirements.txt
+
+
+	2.	Start the app:
 
 streamlit run app.py
 
-Enjoy your AI-powered CSV chatbot!
+
+	3.	Upload a CSV file and start chatting!
+
+Sample Queries
+	1.	General Question:
+	•	“What is the capital of Norway?”
+	•	The LLM responds as a general chatbot.
+	2.	Pandas Manipulation:
+	•	“Show me the rows where column ‘A’ > 10.”
+	•	The manipulate_dataset tool processes this.
+	3.	Dataset Statistics:
+	•	“Give me the stats of the dataset.”
+	•	The dataset_stats tool generates a detailed summary.
+
+This structure ensures clean separation of concerns, dynamic tool usage, and seamless conversational experience.
