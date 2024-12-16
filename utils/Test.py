@@ -1,192 +1,202 @@
-Here’s the updated end-to-end code incorporating all the feedback and improvements:
-	•	Uses LangGraph for dynamic agent management.
-	•	Replaces manual query classification with LLM-based classification.
-	•	Integrates create_pandas_dataframe_agent for CSV operations.
-	•	Allows dynamic addition of agents.
-	•	Includes memory for the chatbot and a reset memory button.
+Below is the corrected and complete implementation using AgentExecutor, Tool, and query classification using the LLM. Additionally, a custom ChatPromptTemplate is defined to guide the interactions.
 
-Directory Structure
+Updated File Structure
 
-project/
-│
-├── app.py                # Main Streamlit app
-├── agents.py             # Agent management and dynamic agent setup
-├── query_classifier.py   # LLM-based query classification
-├── requirements.txt      # Required libraries
-└── utils.py              # Utility functions for modularity
+chatbot/
+├── config/
+│   ├── embeddings_config.py
+│   ├── llm_config.py
+│   ├── vectordb_config.py
+├── tools/
+│   ├── pandas_tool.py
+│   ├── stats_tool.py
+├── agents/
+│   ├── query_handler.py
+├── main.py
+├── requirements.txt
+└── README.md
 
-app.py (Main Streamlit App)
+Code Implementation
+
+1. requirements.txt
+
+langchain
+streamlit
+pandas
+numpy
+openai
+sentence-transformers
+pinecone-client
+
+2. config/embeddings_config.py
+
+from langchain.embeddings import OpenAIEmbeddings
+
+def get_embeddings():
+    return OpenAIEmbeddings()
+
+3. config/llm_config.py
+
+from langchain.llms import OpenAI
+
+def get_llm():
+    return OpenAI(model="gpt-4", temperature=0.7)
+
+4. config/vectordb_config.py
+
+from langchain.vectorstores import Pinecone
+import pinecone
+from config.embeddings_config import get_embeddings
+
+def get_vectordb(index_name="chatbot_index"):
+    pinecone.init(api_key="your-pinecone-api-key", environment="us-west1-gcp")
+    return Pinecone.from_existing_index(index_name, embedding=get_embeddings())
+
+5. tools/pandas_tool.py
+
+import pandas as pd
+from langchain.tools import Tool
+
+def pandas_query_tool(dataframe: pd.DataFrame):
+    def pandas_query_func(query: str):
+        try:
+            result = eval(query)
+            return str(result)
+        except Exception as e:
+            return f"Error processing query: {str(e)}"
+
+    return Tool(
+        name="PandasTool",
+        description="Use this tool for manipulating or querying the dataset. Provide Pythonic commands for operations.",
+        func=pandas_query_func,
+    )
+
+6. tools/stats_tool.py
+
+from langchain.tools import Tool
+
+def dataset_stats_tool(dataframe):
+    def stats_func(_):
+        stats = {
+            "columns": dataframe.columns.tolist(),
+            "shape": dataframe.shape,
+            "missing_values": dataframe.isnull().sum().to_dict(),
+            "data_types": dataframe.dtypes.to_dict(),
+            "summary": dataframe.describe().to_dict(),
+        }
+        return stats
+
+    return Tool(
+        name="StatsTool",
+        description="Use this tool to retrieve dataset statistics such as shape, columns, missing values, and summary.",
+        func=stats_func,
+    )
+
+7. agents/query_handler.py
+
+from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from langchain.chains import LLMChain
+from config.llm_config import get_llm
+
+def query_classifier():
+    prompt = ChatPromptTemplate(
+        messages=[
+            SystemMessagePromptTemplate.from_template(
+                "You are a smart query classifier. Based on the input query, classify it into one of these categories: `stats`, `dataframe`, or `general`."
+            ),
+            HumanMessagePromptTemplate.from_template("{query}"),
+        ]
+    )
+    return LLMChain(llm=get_llm(), prompt=prompt)
+
+8. main.py
 
 import streamlit as st
-from agents import AgentManager
-from query_classifier import QueryClassifier
+import pandas as pd
+from tools.pandas_tool import pandas_query_tool
+from tools.stats_tool import dataset_stats_tool
+from agents.query_handler import query_classifier
+from config.llm_config import get_llm
+from langchain.agents import Tool, AgentExecutor
+from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 
-# Initialize the agent manager
-agent_manager = AgentManager()
-query_classifier = QueryClassifier()
+st.title("Conversational Chatbot with CSV Support")
 
-# Streamlit app UI
-st.title("Dynamic Chatbot with CSV and Forecasting Agents")
+# Upload CSV
+uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
 
-# File upload for CSV
-uploaded_file = st.file_uploader("Upload your CSV file", type=["csv"])
 if uploaded_file:
-    agent_manager.load_csv_agent(uploaded_file)
-    st.write("CSV file uploaded and agent initialized.")
+    dataframe = pd.read_csv(uploaded_file)
+    st.write("Dataset Preview:")
+    st.write(dataframe.head())
 
-# Reset memory button
-if st.button("Reset Chat Memory"):
-    agent_manager.reset_memory()
-    st.write("Chat memory reset.")
+    # Initialize Tools
+    pandas_tool = pandas_query_tool(dataframe)
+    stats_tool = dataset_stats_tool(dataframe)
+    
+    tools = [pandas_tool, stats_tool]
 
-# Chat interface
-st.text_input("User Input", placeholder="Ask your question here...", key="user_input")
-user_input = st.session_state.get("user_input")
+    # Query Classifier
+    classifier = query_classifier()
 
-if user_input:
-    # Classify the query type
-    query_type = query_classifier.classify(user_input)
+    # Define Chat Prompt Template
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            SystemMessagePromptTemplate.from_template(
+                "You are an intelligent assistant that can answer general queries, handle dataset manipulations, and provide dataset statistics. "
+                "Classify the query first, then use the appropriate tool."
+            ),
+            HumanMessagePromptTemplate.from_template("{input}")
+        ]
+    )
 
-    # Process query based on its type
-    response = agent_manager.handle_query(user_input, query_type)
-    st.write(response)
+    # Agent Executor
+    agent_executor = AgentExecutor.from_agent_and_tools(
+        llm=get_llm(),
+        tools=tools,
+        verbose=True,
+        agent_prompt=prompt,
+    )
 
-agents.py (Agent Management)
+    st.header("Chat Interface")
+    user_input = st.text_input("Ask your question:")
 
-import pandas as pd
-from langgraph.agents import AgentManager as LGAgentManager
-from langchain_experimental.tools import create_pandas_dataframe_agent
-from langchain.memory import ConversationBufferMemory
-from langchain.chat_models import ChatOpenAI
+    if user_input:
+        # Classify the query
+        classification = classifier.run({"query": user_input}).strip()
 
-class AgentManager:
-    def __init__(self):
-        """
-        Initializes the AgentManager with LangGraph and pre-defined agents.
-        """
-        self.memory = ConversationBufferMemory(chat_memory=True, return_messages=True)
-        self.model = ChatOpenAI(temperature=0, model="gpt-4")  # LLM used for agents
-        self.csv_agent = None
-        self.agents = LGAgentManager(memory=self.memory)
-
-    def load_csv_agent(self, file):
-        """
-        Load a CSV file and initialize a Pandas agent.
-        """
-        data = pd.read_csv(file)
-        self.csv_agent = create_pandas_dataframe_agent(
-            llm=self.model,
-            df=data,
-            memory=self.memory,
-            verbose=True,
-        )
-        self.agents.add_tool("CSV Agent", self.csv_agent)
-
-    def handle_query(self, query, query_type):
-        """
-        Handles the user query by routing it to the appropriate agent.
-        """
-        if query_type == "csv":
-            if not self.csv_agent:
-                return "No CSV agent is available. Please upload a CSV file."
-            return self.csv_agent.run(query)
-        elif query_type == "forecasting":
-            # Future: Add forecasting agent here
-            return "Forecasting agent is not yet implemented."
-        elif query_type == "general":
-            return self.agents.run_tool(query)
+        st.write(f"Query classified as: `{classification}`")
+        
+        if classification == "general":
+            response = get_llm().run(user_input)
         else:
-            return "I could not classify your query. Please try again."
-
-    def reset_memory(self):
-        """
-        Reset conversation memory.
-        """
-        self.memory.clear()
-
-query_classifier.py (LLM-Based Query Classification)
-
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain.chat_models import ChatOpenAI
-
-class QueryClassifier:
-    def __init__(self):
-        """
-        Initialize the query classifier with a prompt and an LLM.
-        """
-        self.model = ChatOpenAI(temperature=0, model="gpt-4")
-        self.prompt = PromptTemplate(
-            input_variables=["query"],
-            template="""
-            Classify the user query into one of the following categories:
-            - general: For general knowledge questions.
-            - csv: For questions related to uploaded CSV data.
-            - forecasting: For questions requesting time-series forecasting.
-
-            User Query: {query}
-            Classification:
-            """
-        )
-        self.chain = LLMChain(llm=self.model, prompt=self.prompt)
-
-    def classify(self, query):
-        """
-        Classify the query using the LLM.
-        """
-        result = self.chain.run(query)
-        return result.strip().lower()
-
-utils.py (Utility Functions)
-
-import pandas as pd
-
-def load_csv(file):
-    """
-    Utility to load a CSV file into a Pandas DataFrame.
-    """
-    return pd.read_csv(file)
-
-def extract_forecasting_column(query, data):
-    """
-    Extracts the column to forecast based on the user query.
-    """
-    # Example: Parse the query to find the column name for forecasting.
-    for col in data.columns:
-        if col.lower() in query.lower():
-            return col
-    return None
-
-Requirements (requirements.txt)
-
-streamlit
-langchain
-langgraph
-pandas
-openai
+            response = agent_executor.run(input=user_input)
+        
+        st.write("Chatbot Response:")
+        st.write(response)
 
 How It Works
-	1.	Dynamic Agent Management with LangGraph:
-	•	Uses LangGraph.AgentManager to dynamically add, manage, and invoke agents.
-	2.	LLM-Based Query Classification:
-	•	QueryClassifier uses GPT-4 to classify queries into three types: general, csv, and forecasting.
-	3.	CSV Agent with create_pandas_dataframe_agent:
-	•	Handles filtering, sorting, and aggregation queries on the uploaded CSV.
-	4.	Reset Memory Button:
-	•	Clears conversation memory for a fresh chat.
-	5.	Future Extensibility:
-	•	Easy to add a forecasting agent or any additional agents.
+	1.	File Upload:
+Users upload a CSV file, and the system parses it into a pandas dataframe.
+	2.	Query Classification:
+	•	The LLM classifies the query into one of three categories:
+	•	stats: Dataset statistics.
+	•	dataframe: Pandas manipulation or query.
+	•	general: General conversational response.
+	3.	AgentExecutor and Tools:
+	•	StatsTool: Handles dataset statistics.
+	•	PandasTool: Handles pandas operations.
+	•	Both tools are registered with the AgentExecutor.
+	4.	Chat Prompt Template:
+Guides the chatbot with a clear context to handle user queries and decide appropriate actions.
+	5.	Response Generation:
+	•	Based on the classified query, the relevant tool is invoked via AgentExecutor.
+	•	For general queries, the LLM directly responds.
 
-Output Example
+Key Improvements
+	1.	AgentExecutor Integration: Ensures tools are efficiently used with LLM for specific tasks.
+	2.	Tool Creation: Custom Tool objects for pandas operations and statistics.
+	3.	LLM-Based Classification: Dynamically routes queries using the LLM.
+	4.	Modular Structure: Keeps code organized and extensible.
 
-Interaction:
-	1.	User Uploads CSV
-Agent initialized.
-	2.	User Query: “What are the top 5 rows?”
-CSV Agent responds.
-	3.	User Query: “Tell me about Norway.”
-General Knowledge Agent responds.
-	4.	User Query: “Predict sales for the next month based on the ‘Sales’ column.”
-Forecasting Agent processes (if implemented).
-
-Let me know if you’d like further refinements or extensions!
+Let me know if you’d like further clarifications!
