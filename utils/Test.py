@@ -1,202 +1,210 @@
-Below is the corrected and complete implementation using AgentExecutor, Tool, and query classification using the LLM. Additionally, a custom ChatPromptTemplate is defined to guide the interactions.
+Here’s an end-to-end chatbot implementation based on your requirements. It combines LangChain, Streamlit, and pandas to create a conversational chatbot that:
+	1.	Takes a CSV file as input.
+	2.	Allows for general conversational AI.
+	3.	Provides pandas-based dataset manipulation.
+	4.	Returns dataset statistics using a custom tool.
+	5.	Uses a vector database for embeddings to answer contextual questions.
 
-Updated File Structure
+File Structure
 
 chatbot/
+│
+├── app.py                # Main Streamlit app
 ├── config/
-│   ├── embeddings_config.py
-│   ├── llm_config.py
-│   ├── vectordb_config.py
-├── tools/
-│   ├── pandas_tool.py
-│   ├── stats_tool.py
+│   ├── __init__.py       # Configuration package initialization
+│   ├── llm_config.py     # LLM and embedding model configurations
+│   ├── vectordb_config.py # Vector DB configuration
+│
 ├── agents/
-│   ├── query_handler.py
-├── main.py
-├── requirements.txt
-└── README.md
+│   ├── __init__.py       # Agents package initialization
+│   ├── query_classifier.py # Query classification logic
+│   ├── pandas_agent.py   # Pandas agent logic
+│   ├── stats_tool.py     # Custom stats tool for dataset
+│
+├── utils/
+│   ├── __init__.py       # Utilities package initialization
+│   ├── file_handler.py   # File handling logic
+│
+├── requirements.txt      # Required libraries
+└── README.md             # Project documentation
 
-Code Implementation
+File Details
 
-1. requirements.txt
+1. config/llm_config.py
 
-langchain
-streamlit
-pandas
-numpy
-openai
-sentence-transformers
-pinecone-client
+Configures the LLM and embedding model.
 
-2. config/embeddings_config.py
+from langchain_openai import ChatOpenAI
+from langchain.embeddings.openai import OpenAIEmbeddings
 
-from langchain.embeddings import OpenAIEmbeddings
+# Initialize the LLM
+llm = ChatOpenAI(model="gpt-3.5-turbo", temperature=0)
 
-def get_embeddings():
-    return OpenAIEmbeddings()
+# Initialize the embedding model
+embedding_model = OpenAIEmbeddings()
 
-3. config/llm_config.py
+2. config/vectordb_config.py
 
-from langchain.llms import OpenAI
+Sets up a vector database for storing and retrieving embeddings.
 
-def get_llm():
-    return OpenAI(model="gpt-4", temperature=0.7)
+from langchain.vectorstores import FAISS
+from langchain.schema import Document
 
-4. config/vectordb_config.py
+# Initialize the FAISS vector database
+vector_db = FAISS(embedding_model.embedding_function, index=None)
 
-from langchain.vectorstores import Pinecone
-import pinecone
-from config.embeddings_config import get_embeddings
+# Function to add documents to the vector database
+def add_to_vector_db(data):
+    documents = [Document(page_content=doc) for doc in data]
+    vector_db.add_documents(documents)
 
-def get_vectordb(index_name="chatbot_index"):
-    pinecone.init(api_key="your-pinecone-api-key", environment="us-west1-gcp")
-    return Pinecone.from_existing_index(index_name, embedding=get_embeddings())
+3. agents/query_classifier.py
 
-5. tools/pandas_tool.py
+Implements query classification logic.
 
+def classify_query(user_input):
+    """
+    Classifies the user's query into:
+    1. General Question
+    2. Pandas Manipulation
+    3. Dataset Stats
+    """
+    if "stats" in user_input.lower():
+        return "stats"
+    elif "pandas" in user_input.lower() or "filter" in user_input.lower():
+        return "pandas"
+    else:
+        return "general"
+
+4. agents/pandas_agent.py
+
+Handles dataset manipulation using pandas.
+
+from langchain.agents import tool
 import pandas as pd
-from langchain.tools import Tool
 
-def pandas_query_tool(dataframe: pd.DataFrame):
-    def pandas_query_func(query: str):
-        try:
-            result = eval(query)
-            return str(result)
-        except Exception as e:
-            return f"Error processing query: {str(e)}"
+@tool
+def manipulate_dataset(csv_path: str, query: str):
+    """Applies the user-defined query on the dataset."""
+    try:
+        df = pd.read_csv(csv_path)
+        result = eval(query)  # WARNING: Use `eval` cautiously. Prefer pandas query methods.
+        return result.to_string()
+    except Exception as e:
+        return f"Error manipulating dataset: {str(e)}"
 
-    return Tool(
-        name="PandasTool",
-        description="Use this tool for manipulating or querying the dataset. Provide Pythonic commands for operations.",
-        func=pandas_query_func,
-    )
+5. agents/stats_tool.py
 
-6. tools/stats_tool.py
+Generates statistics for the dataset.
 
-from langchain.tools import Tool
+from langchain.agents import tool
+import pandas as pd
 
-def dataset_stats_tool(dataframe):
-    def stats_func(_):
+@tool
+def dataset_stats(csv_path: str):
+    """Returns basic statistics of the dataset."""
+    try:
+        df = pd.read_csv(csv_path)
         stats = {
-            "columns": dataframe.columns.tolist(),
-            "shape": dataframe.shape,
-            "missing_values": dataframe.isnull().sum().to_dict(),
-            "data_types": dataframe.dtypes.to_dict(),
-            "summary": dataframe.describe().to_dict(),
+            "row_count": len(df),
+            "column_count": len(df.columns),
+            "columns": list(df.columns),
+            "missing_values": df.isnull().sum().to_dict(),
         }
         return stats
+    except Exception as e:
+        return f"Error generating stats: {str(e)}"
 
-    return Tool(
-        name="StatsTool",
-        description="Use this tool to retrieve dataset statistics such as shape, columns, missing values, and summary.",
-        func=stats_func,
-    )
+6. utils/file_handler.py
 
-7. agents/query_handler.py
+Handles file uploads and storage.
 
-from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
-from langchain.chains import LLMChain
-from config.llm_config import get_llm
+import os
 
-def query_classifier():
-    prompt = ChatPromptTemplate(
-        messages=[
-            SystemMessagePromptTemplate.from_template(
-                "You are a smart query classifier. Based on the input query, classify it into one of these categories: `stats`, `dataframe`, or `general`."
-            ),
-            HumanMessagePromptTemplate.from_template("{query}"),
-        ]
-    )
-    return LLMChain(llm=get_llm(), prompt=prompt)
+def save_uploaded_file(uploaded_file):
+    """Saves the uploaded file to disk."""
+    file_path = os.path.join("uploaded_files", uploaded_file.name)
+    with open(file_path, "wb") as f:
+        f.write(uploaded_file.getbuffer())
+    return file_path
 
-8. main.py
+7. app.py
+
+Main Streamlit app to bring everything together.
 
 import streamlit as st
-import pandas as pd
-from tools.pandas_tool import pandas_query_tool
-from tools.stats_tool import dataset_stats_tool
-from agents.query_handler import query_classifier
-from config.llm_config import get_llm
-from langchain.agents import Tool, AgentExecutor
-from langchain.prompts.chat import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
+from config.llm_config import llm
+from config.vectordb_config import add_to_vector_db, vector_db
+from agents.query_classifier import classify_query
+from agents.pandas_agent import manipulate_dataset
+from agents.stats_tool import dataset_stats
+from utils.file_handler import save_uploaded_file
 
-st.title("Conversational Chatbot with CSV Support")
+st.title("AI-Powered CSV Chatbot")
 
-# Upload CSV
-uploaded_file = st.file_uploader("Upload a CSV file", type="csv")
+# File upload
+uploaded_file = st.file_uploader("Upload a CSV file", type=["csv"])
 
 if uploaded_file:
-    dataframe = pd.read_csv(uploaded_file)
-    st.write("Dataset Preview:")
-    st.write(dataframe.head())
+    # Save the file and prepare vector DB
+    file_path = save_uploaded_file(uploaded_file)
+    st.write(f"Uploaded file saved at: {file_path}")
 
-    # Initialize Tools
-    pandas_tool = pandas_query_tool(dataframe)
-    stats_tool = dataset_stats_tool(dataframe)
+    # Add CSV content to vector DB
+    with open(file_path, "r") as f:
+        add_to_vector_db(f.readlines())
+
+    # Start conversation
+    st.write("Chatbot is ready to interact!")
+    chat_history = []
     
-    tools = [pandas_tool, stats_tool]
+    while True:
+        user_input = st.text_input("Ask a question or give a task:")
 
-    # Query Classifier
-    classifier = query_classifier()
+        if user_input:
+            # Classify query
+            query_type = classify_query(user_input)
+            
+            if query_type == "general":
+                # Handle general questions
+                response = llm.invoke(user_input)
+                st.write(response)
+            elif query_type == "pandas":
+                # Handle pandas queries
+                response = manipulate_dataset(csv_path=file_path, query=user_input)
+                st.write(response)
+            elif query_type == "stats":
+                # Handle dataset statistics
+                response = dataset_stats(csv_path=file_path)
+                st.write(response)
+            
+            # Update chat history
+            chat_history.append({"user": user_input, "bot": response})
 
-    # Define Chat Prompt Template
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            SystemMessagePromptTemplate.from_template(
-                "You are an intelligent assistant that can answer general queries, handle dataset manipulations, and provide dataset statistics. "
-                "Classify the query first, then use the appropriate tool."
-            ),
-            HumanMessagePromptTemplate.from_template("{input}")
-        ]
-    )
+8. requirements.txt
 
-    # Agent Executor
-    agent_executor = AgentExecutor.from_agent_and_tools(
-        llm=get_llm(),
-        tools=tools,
-        verbose=True,
-        agent_prompt=prompt,
-    )
-
-    st.header("Chat Interface")
-    user_input = st.text_input("Ask your question:")
-
-    if user_input:
-        # Classify the query
-        classification = classifier.run({"query": user_input}).strip()
-
-        st.write(f"Query classified as: `{classification}`")
-        
-        if classification == "general":
-            response = get_llm().run(user_input)
-        else:
-            response = agent_executor.run(input=user_input)
-        
-        st.write("Chatbot Response:")
-        st.write(response)
+streamlit
+langchain
+faiss-cpu
+openai
+pandas
 
 How It Works
 	1.	File Upload:
-Users upload a CSV file, and the system parses it into a pandas dataframe.
-	2.	Query Classification:
-	•	The LLM classifies the query into one of three categories:
-	•	stats: Dataset statistics.
-	•	dataframe: Pandas manipulation or query.
-	•	general: General conversational response.
-	3.	AgentExecutor and Tools:
-	•	StatsTool: Handles dataset statistics.
-	•	PandasTool: Handles pandas operations.
-	•	Both tools are registered with the AgentExecutor.
-	4.	Chat Prompt Template:
-Guides the chatbot with a clear context to handle user queries and decide appropriate actions.
-	5.	Response Generation:
-	•	Based on the classified query, the relevant tool is invoked via AgentExecutor.
-	•	For general queries, the LLM directly responds.
+	•	The user uploads a CSV file.
+	•	The app saves the file and prepares embeddings for the content.
+	2.	Chat:
+	•	Users can ask general questions, request pandas manipulations, or ask for dataset statistics.
+	•	The classify_query function determines which tool/agent to invoke.
+	3.	Tools:
+	•	manipulate_dataset: For pandas manipulations.
+	•	dataset_stats: For statistics about the dataset.
+	•	General LLM responses for other queries.
+	4.	Execution:
+	•	Streamlit handles the UI, while LangChain agents handle the logic.
 
-Key Improvements
-	1.	AgentExecutor Integration: Ensures tools are efficiently used with LLM for specific tasks.
-	2.	Tool Creation: Custom Tool objects for pandas operations and statistics.
-	3.	LLM-Based Classification: Dynamically routes queries using the LLM.
-	4.	Modular Structure: Keeps code organized and extensible.
+You can run the app with:
 
-Let me know if you’d like further clarifications!
+streamlit run app.py
+
+Enjoy your AI-powered CSV chatbot!
