@@ -1,71 +1,87 @@
-import os
 import pandas as pd
-from joblib import Parallel, delayed
-from langchain.agents import create_pandas_dataframe_agent
+import sqlite3
+import langgraph
 from langchain.chat_models import ChatOpenAI
+from langchain.tools import tool
+from langchain.agents import initialize_agent, AgentType
+from langchain.memory import ConversationBufferMemory
+from sqlalchemy import create_engine
+from typing import Dict, Any
+from langgraph.prebuilt import ToolExecutor
+from langgraph.graph import StateGraph
 
-class FastCSVAgent:
-    def __init__(self, api_key):
-        self.api_key = api_key
-        self.llm = ChatOpenAI(openai_api_key=self.api_key, temperature=0)
-        self.dataframes = {}
-        self.merged_dataframe = None
-        self.agent = None
+# Load dataset into Pandas DataFrame
+df = pd.read_csv("your_dataset.csv")  # Change to your dataset file
 
-    def load_csv_files(self, folder_path):
-        """Load CSV files in parallel."""
-        def load_csv(file):
-            return pd.read_csv(os.path.join(folder_path, file))
-        
-        files = [file for file in os.listdir(folder_path) if file.endswith('.csv')]
-        self.dataframes = dict(zip(files, Parallel(n_jobs=-1)(delayed(load_csv)(file) for file in files)))
-        print(f"Loaded {len(self.dataframes)} CSV files.")
+# Create SQLite Database & Load Data into SQL Table
+engine = create_engine("sqlite:///database.db", echo=True)
+df.to_sql("data_table", engine, if_exists="replace", index=False)
 
-    def decide_query_action(self, query):
-        """Decide if merging is needed or which table to use."""
-        schemas = {name: list(df.columns) for name, df in self.dataframes.items()}
-        prompt = f"""
-        I have these schemas: {schemas}.
-        Query: "{query}"
-        Decide:
-        1. Should I merge tables? If yes, provide details (tables, keys, method).
-        2. If no merge is needed, suggest the best table to use.
-        """
-        response = self.llm.predict(prompt)
-        return eval(response)
+# Define Pandas Agent (Executes Pandas Queries)
+@tool
+def pandas_query(query: str) -> str:
+    """Executes a Pandas query on the dataset and returns results."""
+    try:
+        result = eval(f"df.{query}")
+        return str(result)
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-    def merge_tables(self, merge_details):
-        """Merge tables based on LLM instructions."""
-        try:
-            tables = merge_details['tables']
-            keys = merge_details.get('keys', [])
-            method = merge_details.get('method', 'outer')
-            dfs_to_merge = [self.dataframes[table] for table in tables]
-            
-            merged_df = dfs_to_merge[0]
-            for df in dfs_to_merge[1:]:
-                merged_df = pd.merge(merged_df, df, how=method, on=keys)
-            
-            return merged_df
-        except Exception as e:
-            print(f"Error during merging: {e}")
-            return None
+# Define SQL Agent (Executes SQL Queries)
+@tool
+def sql_query(query: str) -> str:
+    """Executes an SQL query on the database and returns results."""
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(query).fetchall()
+            return str(result)
+    except Exception as e:
+        return f"Error: {str(e)}"
 
-    def answer_query(self, query):
-        """Answer queries efficiently."""
-        decision = self.decide_query_action(query)
-        
-        if decision.get('merge_required', False):
-            self.merged_dataframe = self.merge_tables(decision['merge_details'])
-            df_to_query = self.merged_dataframe
-        else:
-            df_to_query = self.dataframes.get(decision['chosen_table'])
-        
-        if df_to_query is None:
-            print("Error: No valid table to query.")
-            return None
-        
-        # Use LangChain Pandas Agent
-        self.agent = create_pandas_dataframe_agent(self.llm, df_to_query, verbose=True)
-        result = self.agent.run(query)
-        return result
+# Initialize LLM
+llm = ChatOpenAI(model="gpt-4")
+
+# Define Tools
+tools = [pandas_query, sql_query]
+tool_executor = ToolExecutor(tools)
+
+# Create LangChain Agent
+agent = initialize_agent(
+    tools=tools,
+    llm=llm,
+    agent=AgentType.OPENAI_FUNCTIONS,
+    verbose=True,
+    memory=ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+)
+
+# Define StateGraph for LangGraph
+class ChatbotGraph:
+    def __init__(self):
+        self.graph = StateGraph(Dict[str, Any])
+
+        self.graph.add_node("llm_decision", self.llm_decision)
+        self.graph.add_node("execute_tool", tool_executor)
+
+        # LLM decides which tool to call
+        self.graph.set_entry_point("llm_decision")
+        self.graph.add_edge("llm_decision", "execute_tool")
+
+        self.app = self.graph.compile()
+
+    def llm_decision(self, state: Dict[str, Any]):
+        """LLM decides whether to use Pandas or SQL tool."""
+        user_input = state["input"]
+        response = agent.invoke({"input": user_input})
+        return {"tool_calls": response}
+
+# Initialize chatbot
+chatbot = ChatbotGraph()
+
+# Example Queries
+user_input = "Show me the first 5 rows using Pandas"
+response = chatbot.app.invoke({"input": user_input})
+print(response)
+
+user_input = "Select * from data_table limit 5"
+response = chatbot.app.invoke({"input": user_input})
+print(response)
