@@ -1,13 +1,11 @@
 import pandas as pd
 import sqlite3
-import langgraph
+from typing import Dict, Any
+from sqlalchemy import create_engine
 from langchain.chat_models import ChatOpenAI
-from langchain.tools import tool
 from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationBufferMemory
-from sqlalchemy import create_engine
-from typing import Dict, Any
-from langgraph.prebuilt import ToolExecutor
+from langchain.tools import tool
 from langgraph.graph import StateGraph
 
 # Load dataset into Pandas DataFrame
@@ -17,7 +15,7 @@ df = pd.read_csv("your_dataset.csv")  # Change to your dataset file
 engine = create_engine("sqlite:///database.db", echo=True)
 df.to_sql("data_table", engine, if_exists="replace", index=False)
 
-# Define Pandas Agent (Executes Pandas Queries)
+# Define Pandas Query Tool
 @tool
 def pandas_query(query: str) -> str:
     """Executes a Pandas query on the dataset and returns results."""
@@ -27,7 +25,7 @@ def pandas_query(query: str) -> str:
     except Exception as e:
         return f"Error: {str(e)}"
 
-# Define SQL Agent (Executes SQL Queries)
+# Define SQL Query Tool
 @tool
 def sql_query(query: str) -> str:
     """Executes an SQL query on the database and returns results."""
@@ -42,12 +40,11 @@ def sql_query(query: str) -> str:
 llm = ChatOpenAI(model="gpt-4")
 
 # Define Tools
-tools = [pandas_query, sql_query]
-tool_executor = ToolExecutor(tools)
+TOOLS = {"pandas_query": pandas_query, "sql_query": sql_query}
 
 # Create LangChain Agent
 agent = initialize_agent(
-    tools=tools,
+    tools=list(TOOLS.values()),  # Pass list of tools
     llm=llm,
     agent=AgentType.OPENAI_FUNCTIONS,
     verbose=True,
@@ -60,7 +57,7 @@ class ChatbotGraph:
         self.graph = StateGraph(Dict[str, Any])
 
         self.graph.add_node("llm_decision", self.llm_decision)
-        self.graph.add_node("execute_tool", tool_executor)
+        self.graph.add_node("execute_tool", self.execute_tool)
 
         # LLM decides which tool to call
         self.graph.set_entry_point("llm_decision")
@@ -69,10 +66,29 @@ class ChatbotGraph:
         self.app = self.graph.compile()
 
     def llm_decision(self, state: Dict[str, Any]):
-        """LLM decides whether to use Pandas or SQL tool."""
+        """LLM decides which tool to use (Pandas or SQL)."""
         user_input = state["input"]
         response = agent.invoke({"input": user_input})
-        return {"tool_calls": response}
+
+        # Extract tool name
+        if "pandas" in user_input.lower():
+            tool_name = "pandas_query"
+        else:
+            tool_name = "sql_query"
+
+        return {"tool_name": tool_name, "query": user_input}
+
+    def execute_tool(self, state: Dict[str, Any]):
+        """Executes the chosen tool."""
+        tool_name = state["tool_name"]
+        query = state["query"]
+
+        if tool_name in TOOLS:
+            result = TOOLS[tool_name].run(query)
+        else:
+            result = "Invalid tool selection"
+
+        return {"output": result}
 
 # Initialize chatbot
 chatbot = ChatbotGraph()
@@ -80,8 +96,8 @@ chatbot = ChatbotGraph()
 # Example Queries
 user_input = "Show me the first 5 rows using Pandas"
 response = chatbot.app.invoke({"input": user_input})
-print(response)
+print(response["output"])
 
 user_input = "Select * from data_table limit 5"
 response = chatbot.app.invoke({"input": user_input})
-print(response)
+print(response["output"])
