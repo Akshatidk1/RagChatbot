@@ -1,103 +1,51 @@
-import pandas as pd
-import sqlite3
-from typing import Dict, Any
-from sqlalchemy import create_engine
-from langchain.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent, AgentType
-from langchain.memory import ConversationBufferMemory
-from langchain.tools import tool
-from langgraph.graph import StateGraph
+from autogen import AssistantAgent, UserProxyAgent, GroupChat, GroupChatManager, ConversableAgent
+import custom_llm  # Assuming `custom_llm()` returns an instance of an LLM
 
-# Load dataset into Pandas DataFrame
-df = pd.read_csv("your_dataset.csv")  # Change to your dataset file
+# Custom Conversable Agent that uses custom_llm()
+class CustomLLMAgent(ConversableAgent):
+    def generate_reply(self, messages, sender):
+        prompt = messages[-1]["content"]  # Get last message as input
+        response = custom_llm().invoke(prompt)  # Use custom_llm() for response
+        return response
 
-# Create SQLite Database & Load Data into SQL Table
-engine = create_engine("sqlite:///database.db", echo=True)
-df.to_sql("data_table", engine, if_exists="replace", index=False)
-
-# Define Pandas Query Tool
-@tool
-def pandas_query(query: str) -> str:
-    """Executes a Pandas query on the dataset and returns results."""
-    try:
-        result = eval(f"df.{query}")
-        return str(result)
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# Define SQL Query Tool
-@tool
-def sql_query(query: str) -> str:
-    """Executes an SQL query on the database and returns results."""
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query).fetchall()
-            return str(result)
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# Initialize LLM
-llm = ChatOpenAI(model="gpt-4")
-
-# Define Tools
-TOOLS = {"pandas_query": pandas_query, "sql_query": sql_query}
-
-# Create LangChain Agent
-agent = initialize_agent(
-    tools=list(TOOLS.values()),  # Pass list of tools
-    llm=llm,
-    agent=AgentType.OPENAI_FUNCTIONS,
-    verbose=True,
-    memory=ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+# Define Agents
+summarization_agent = CustomLLMAgent(
+    name="Summarizer",
+    system_message="Convert user queries into a concise description of the required code."
 )
 
-# Define StateGraph for LangGraph
-class ChatbotGraph:
-    def __init__(self):
-        self.graph = StateGraph(Dict[str, Any])
+code_generator_agent = CustomLLMAgent(
+    name="CodeGenerator",
+    system_message="Generate Python code based on a given summary."
+)
 
-        self.graph.add_node("llm_decision", self.llm_decision)
-        self.graph.add_node("execute_tool", self.execute_tool)
+validator_agent = CustomLLMAgent(
+    name="Validator",
+    system_message="Validate the code against the summary. If incorrect, request a revision."
+)
 
-        # LLM decides which tool to call
-        self.graph.set_entry_point("llm_decision")
-        self.graph.add_edge("llm_decision", "execute_tool")
+# User Proxy
+user_proxy = UserProxyAgent(
+    name="User",
+    human_input_mode="NEVER",
+    max_consecutive_auto_reply=10
+)
 
-        self.app = self.graph.compile()
+# Define GroupChat for agent interaction
+group_chat = GroupChat(
+    agents=[user_proxy, summarization_agent, code_generator_agent, validator_agent],
+    messages=[]
+)
 
-    def llm_decision(self, state: Dict[str, Any]):
-        """LLM decides which tool to use (Pandas or SQL)."""
-        user_input = state["input"]
-        response = agent.invoke({"input": user_input})
+# Create a Controller to manage agent conversations
+controller = GroupChatManager(groupchat=group_chat)
 
-        # Extract tool name
-        if "pandas" in user_input.lower():
-            tool_name = "pandas_query"
-        else:
-            tool_name = "sql_query"
+# Function to initiate the process
+def agentic_code_generation(user_query):
+    response = controller.initiate_chat(user_proxy, message=user_query)
+    return response  # Final validated code
 
-        return {"tool_name": tool_name, "query": user_input}
-
-    def execute_tool(self, state: Dict[str, Any]):
-        """Executes the chosen tool."""
-        tool_name = state["tool_name"]
-        query = state["query"]
-
-        if tool_name in TOOLS:
-            result = TOOLS[tool_name].run(query)
-        else:
-            result = "Invalid tool selection"
-
-        return {"output": result}
-
-# Initialize chatbot
-chatbot = ChatbotGraph()
-
-# Example Queries
-user_input = "Show me the first 5 rows using Pandas"
-response = chatbot.app.invoke({"input": user_input})
-print(response["output"])
-
-user_input = "Select * from data_table limit 5"
-response = chatbot.app.invoke({"input": user_input})
-print(response["output"])
+# Example usage
+user_query = "Write a Python function to calculate Fibonacci numbers."
+final_code = agentic_code_generation(user_query)
+print("Final Validated Code:\n", final_code)
