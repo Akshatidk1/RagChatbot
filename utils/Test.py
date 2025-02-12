@@ -1,94 +1,105 @@
-from autogen import UserProxyAgent, ConversableAgent, GroupChat, GroupChatManager
-import custom_llm  # Ensure custom_llm() is implemented
+import streamlit as st
+import pandas as pd
 
-# ✅ Custom LLM Wrapper
-class LLMWrapper:
-    def __init__(self):
-        self.llm = custom_llm()  # Your custom LLM instance
-
-    def invoke(self, prompt: str) -> str:
-        response = self.llm.invoke(prompt)
-        return response.strip() if response.strip() else "No valid response generated."
-
-# ✅ Custom Agent with `register_reply`
-class CustomLLMAgent(ConversableAgent):
-    def __init__(self, name, system_message):
-        super().__init__(name=name, system_message=system_message)
-        self.llm_wrapper = LLMWrapper()
-        self.register_reply(self.generate_reply)  # ✅ Register reply function
-
-    def generate_reply(self, messages, sender):
-        """Automatically generates replies using the LLM"""
-        if not messages:
-            return [{"role": "assistant", "content": "No input provided."}]
-
-        prompt = messages[-1]["content"]  
-        response = self.llm_wrapper.invoke(prompt)
-
-        # 🔹 Strict Rules to Prevent Incorrect Outputs
-        if self.name == "Summarizer" and "```python" in response:
-            response = "Error: You are not allowed to generate code. Summarize only."
-
-        if self.name == "Coder" and not response.startswith("```python"):
-            response = "Error: Only return valid Python code."
-
-        return [{"role": "assistant", "content": response}]
-
-# ✅ System Messages for Agents
-summarizer_prompt = """You are a requirement analyst. Extract clear requirements from the user's request.
-DO NOT generate any code. Format:
-- Task: Describe what needs to be implemented.
-- Input: List input types.
-- Output: Expected result.
-- Constraints: Performance considerations."""
-
-coder_prompt = """You are an expert Python developer. Generate only Python code. DO NOT explain or modify requirements.
-Return only Python code like this:
-```python
-# Your code here
-```"""
-
-validator_prompt = """You are a senior software engineer. Validate the code for correctness and efficiency.
-- If correct, respond with: "✅ Code is correct."
-- If incorrect, explain the issues and request improvements."""
-
-final_judge_prompt = """You are the final reviewer.
-- If Validator approves the code, finalize the response.
-- If Validator requests changes, return feedback to Coder.
-"""
-
-# ✅ Create Agents
-summarizer_agent = CustomLLMAgent(name="Summarizer", system_message=summarizer_prompt)
-coder_agent = CustomLLMAgent(name="Coder", system_message=coder_prompt)
-validator_agent = CustomLLMAgent(name="Validator", system_message=validator_prompt)
-final_judge_agent = CustomLLMAgent(name="FinalJudge", system_message=final_judge_prompt)
-
-# ✅ User Proxy Agent (Entry Point)
-user_proxy = UserProxyAgent(
-    name="User",
-    human_input_mode="ALWAYS",
-    max_consecutive_auto_reply=10
+# Inject custom CSS for chat bubbles with avatars
+st.markdown(
+    """
+    <style>
+    /* Container for each chat message */
+    .chat-container {
+        margin: 10px 0;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-end;
+    }
+    /* For manager messages, reverse the flex direction so the avatar is on the right */
+    .chat-container.manager {
+        flex-direction: row-reverse;
+    }
+    /* Avatar styling */
+    .chat-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin: 0 10px;
+    }
+    .chat-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    /* Content container for the chat bubble */
+    .chat-content {
+        max-width: 70%;
+        display: flex;
+        flex-direction: column;
+    }
+    /* Chat bubble styling */
+    .chat-bubble {
+        padding: 10px;
+        border-radius: 10px;
+        margin: 5px 0;
+        word-wrap: break-word;
+    }
+    /* Styling for agent messages */
+    .agent .chat-bubble {
+        background-color: #DCF8C6;
+    }
+    /* Styling for manager messages */
+    .manager .chat-bubble {
+        background-color: #FFF3CD;
+    }
+    /* Sender label styling */
+    .sender-label {
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
 )
 
-# ✅ Group Chat Setup
-group_chat = GroupChat(
-    agents=[user_proxy, summarizer_agent, coder_agent, validator_agent, final_judge_agent],
-    messages=[]
-)
+st.title("Agent Chat Manager UI with Avatars")
 
-# ✅ Group Chat Manager to Control the Conversation
-controller = GroupChatManager(groupchat=group_chat)
+# File uploader for the CSV file
+uploaded_file = st.file_uploader("Upload your chat CSV", type=["csv"])
 
-# ✅ Function to Run the Full Workflow
-def agentic_code_generation(user_query):
-    if not user_query.strip():
-        return "Error: Empty user query."
-
-    response = controller.initiate_chat(user_proxy, message=user_query)
-    return response  # ✅ Final validated output
-
-# ✅ Example Call
-if __name__ == "__main__":
-    user_query = "Write a Python function to calculate Fibonacci numbers."
-    final_code = agentic_code_generation(user_query)
-    print("Final Validated Code:\n", final_code)
+if uploaded_file is not None:
+    # Read CSV into a DataFrame
+    df = pd.read_csv(uploaded_file)
+    
+    # Validate required columns: 'name' and 'content'
+    if "name" not in df.columns or "content" not in df.columns:
+        st.error("CSV must contain 'name' and 'content' columns. Optionally, include 'avatar' column.")
+    else:
+        st.write("### Conversation:")
+        
+        # Iterate over each row (assuming CSV rows are in conversation order)
+        for idx, row in df.iterrows():
+            sender = row["name"]
+            message = row["content"]
+            # Use the 'avatar' column if present and not null; otherwise, use a default image.
+            if "avatar" in df.columns and pd.notnull(row["avatar"]):
+                avatar_url = row["avatar"]
+            else:
+                avatar_url = "https://via.placeholder.com/40"
+            
+            # Determine CSS class based on sender (manager messages will be styled differently)
+            css_class = "manager" if sender.strip().lower() == "manager" else "agent"
+            
+            # Render the chat message as an HTML block
+            st.markdown(
+                f"""
+                <div class="chat-container {css_class}">
+                    <div class="chat-avatar">
+                        <img src="{avatar_url}" alt="{sender} avatar">
+                    </div>
+                    <div class="chat-content">
+                        <div class="sender-label">{sender}</div>
+                        <div class="chat-bubble">{message}</div>
+                    </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
