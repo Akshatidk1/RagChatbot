@@ -1,98 +1,61 @@
-import json
 import streamlit as st
 from langchain.memory import ConversationBufferMemory
 from langchain.chat_models import ChatOpenAI
 from langchain.schema import SystemMessage, AIMessage, HumanMessage
 from langchain.schema.runnable import RunnableWithMessageHistory
 
-
-# Load questions from JSON file
-def load_questions():
-    with open("questions.json", "r") as f:
-        return json.load(f)
-
-
-# Initialize the memory for conversation
+# Initialize memory
 memory = ConversationBufferMemory(return_messages=True)
 
-
-# Create a LangChain Chat model (OpenAI)
+# Initialize LLM
 llm = ChatOpenAI(model_name="gpt-4", temperature=0.7)
 
-# Create a simple agent function with RunnableWithMessageHistory
-def create_agent_with_memory(llm, memory):
-    def agent_logic(inputs):
-        messages = inputs.get("messages", [])
-        latest_message = messages[-1].content if messages else ""
-        return llm.predict(latest_message)
+# System prompt for LLM
+SYSTEM_PROMPT = """
+You are a strict assistant that first collects all required information before answering any questions.
+The user can update their answers at any time.
+Required information includes:
+1. Name
+2. Email address
+3. Purpose of request
+Once all details are collected, you may proceed with normal conversation.
+"""
 
-    return RunnableWithMessageHistory(
-        agent_logic,
-        lambda session_id: memory,  # Use the same memory for all sessions
-    )
+# Define agent logic
+def agent_logic(inputs):
+    messages = inputs.get("messages", [])
+    
+    # Let LLM decide the next step
+    return llm.predict_messages(messages)
 
-
-agent = create_agent_with_memory(llm, memory)
-
+# Wrap with message history
+agent = RunnableWithMessageHistory(
+    agent_logic,
+    lambda session_id: memory,
+)
 
 # Streamlit UI
-st.title("Streamlit Chatbot with LangChain Memory")
+st.title("AI Assistant - Collecting Required Info First")
 
-# Initialize session state for conversation and question progress
+# Initialize conversation state
 if "conversation" not in st.session_state:
     st.session_state.conversation = []
-if "question_index" not in st.session_state:
-    st.session_state.question_index = 0
-if "answers" not in st.session_state:
-    st.session_state.answers = {}
-
-questions = load_questions()
-
-
-# Function to handle asking questions and collecting answers
-def ask_next_question():
-    if st.session_state.question_index < len(questions):
-        current_question = questions[st.session_state.question_index]
-        st.session_state.conversation.append(
-            {"role": "assistant", "content": current_question["question"]}
-        )
-        st.session_state.question_index += 1
-
 
 # Display chat history
 for msg in st.session_state.conversation:
-    if msg["role"] == "assistant":
-        st.chat_message("assistant").write(msg["content"])
-    else:
-        st.chat_message("human").write(msg["content"])
-
+    role = "assistant" if msg["role"] == "assistant" else "human"
+    st.chat_message(role).write(msg["content"])
 
 # Handle user input
 user_input = st.chat_input("Your response...")
+
 if user_input:
     # Add user input to conversation
     st.session_state.conversation.append({"role": "human", "content": user_input})
 
-    # Store the answer
-    current_question = questions[st.session_state.question_index - 1]
-    st.session_state.answers[current_question["question"]] = user_input
-
-    # Check if the question was required
-    if current_question["priority"] == 1 and not user_input.strip():
-        st.warning("This question is required. Please provide a valid answer.")
-    else:
-        # Move to the next question
-        ask_next_question()
-
-# After collecting all answers, call the agent with answers
-if st.session_state.question_index >= len(questions):
-    st.write("Thank you for providing all the required information!")
-    st.write("Collected Answers:")
-    st.write(st.session_state.answers)
-
-    # Create a message history for the agent
+    # Prepare message history
     messages = [
-        SystemMessage(content="You are a helpful assistant."),
+        SystemMessage(content=SYSTEM_PROMPT),
         *[
             HumanMessage(content=msg["content"])
             if msg["role"] == "human"
@@ -101,9 +64,12 @@ if st.session_state.question_index >= len(questions):
         ],
     ]
 
-    # Call the agent with conversation history
+    # Call the agent
     agent_response = agent.invoke(
         {"messages": messages},
         config={"configurable": {"session_id": "unique_session_id"}},
     )
-    st.chat_message("assistant").write(agent_response)
+
+    # Add agent response to conversation
+    st.session_state.conversation.append({"role": "assistant", "content": agent_response.content})
+    st.chat_message("assistant").write(agent_response.content)
