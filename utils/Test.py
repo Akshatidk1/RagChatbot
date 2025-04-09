@@ -1,520 +1,255 @@
-# Complete pipeline for fine-tuning EfficientNet on ORBIT Dataset
 import os
-import json
-import random
-import numpy as np
+import torch
+from torch import nn, optim
+from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms, models
 import pandas as pd
 from PIL import Image
+import numpy as np
 from tqdm import tqdm
-import cv2
-import matplotlib.pyplot as plt
-from collections import defaultdict
 
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-from torchvision import models, transforms
-from torchvision.transforms import functional as TF
+# Set device
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using {device} for training")
 
-# For reproducibility
-def set_seed(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-
-set_seed()
-
-# Configuration
-class Config:
-    data_root = "path/to/orbit_dataset"  # Change this to your dataset path
-    metadata_file = "metadata.json"
-    frame_dir = "frames"
-    
-    # Few-shot learning parameters
-    n_way = 5  # Number of classes per episode
-    k_shot = 5  # Number of support examples per class
-    n_query = 15  # Number of query examples per class
-    episodes_per_epoch = 100
-    
-    # Training parameters
-    batch_size = 16
-    learning_rate = 0.0001
-    num_epochs = 30
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    
-    # Model parameters
-    pretrained = True
-    efficientnet_version = "b0"  # Options: b0-b7
-    
-    # Paths
-    save_dir = "orbit_efficientnet_models"
-    log_dir = "orbit_efficientnet_logs"
-    
-config = Config()
-
-# Create directories
-os.makedirs(config.save_dir, exist_ok=True)
-os.makedirs(config.log_dir, exist_ok=True)
-
-# Data preparation utilities
-class ORBITDataset:
-    def __init__(self, data_root, split="train"):
+class ORBITDataset(Dataset):
+    def __init__(self, root_dir, users, mode='train', transform=None):
         """
-        Initialize ORBIT dataset handler
-        
         Args:
-            data_root: Path to the ORBIT dataset
-            split: One of 'train', 'val', or 'test'
+            root_dir (str): Path to the ORBIT dataset
+            users (list): List of users to include
+            mode (str): 'train', 'val', or 'test'
+            transform: Optional transform to be applied to samples
         """
-        self.data_root = data_root
-        self.split = split
-        self.metadata = self._load_metadata()
-        self.users = self._get_users_for_split()
-        self.object_classes = self._get_object_classes()
+        self.root_dir = root_dir
+        self.users = users
+        self.mode = mode
+        self.transform = transform
         
-        # Map users to their objects and frames
-        self.user_objects = self._map_users_to_objects()
-        self.frame_paths = self._generate_frame_paths()
+        self.samples = []
+        self.labels = []
+        self.label_map = {}  # Maps object names to label indices
         
-        # Transform for preprocessing
-        self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], 
-                                std=[0.229, 0.224, 0.225])
-        ])
+        self._load_data()
+    
+    def _load_data(self):
+        label_idx = 0
         
-    def _load_metadata(self):
-        """Load and parse the metadata JSON file"""
-        metadata_path = os.path.join(self.data_root, Config.metadata_file)
-        with open(metadata_path, 'r') as f:
-            return json.load(f)
-    
-    def _get_users_for_split(self):
-        """Extract list of users for the current split"""
-        return [user for user, data in self.metadata.items() 
-                if data.get('split') == self.split]
-    
-    def _get_object_classes(self):
-        """Extract all unique object classes from the dataset"""
-        objects = set()
-        for user, data in self.metadata.items():
-            if data.get('split') == self.split:
-                for obj in data.get('objects', {}).keys():
-                    objects.add(obj)
-        return list(objects)
-    
-    def _map_users_to_objects(self):
-        """Create mapping from users to their objects"""
-        user_objects = {}
+        # For each user
         for user in self.users:
-            user_objects[user] = list(self.metadata[user]['objects'].keys())
-        return user_objects
-    
-    def _generate_frame_paths(self):
-        """Generate paths to all frame images"""
-        frame_paths = defaultdict(lambda: defaultdict(list))
-        
-        for user in self.users:
-            user_dir = os.path.join(self.data_root, user)
-            for obj in self.user_objects[user]:
-                obj_dir = os.path.join(user_dir, obj, Config.frame_dir)
-                
-                # Get protocol directories (clean, clutter, etc.)
-                if not os.path.exists(obj_dir):
-                    continue
-                    
-                protocol_dirs = [d for d in os.listdir(obj_dir) 
-                                if os.path.isdir(os.path.join(obj_dir, d))]
-                
-                for protocol in protocol_dirs:
-                    protocol_dir = os.path.join(obj_dir, protocol)
-                    
-                    # Get video directories
-                    video_dirs = [v for v in os.listdir(protocol_dir) 
-                                 if os.path.isdir(os.path.join(protocol_dir, v))]
-                    
-                    for video in video_dirs:
-                        video_dir = os.path.join(protocol_dir, video)
-                        # Add frame paths - keeping only training videos
-                        if self.metadata[user]['objects'][obj].get('train', False):
-                            frames = [os.path.join(video_dir, f) for f in os.listdir(video_dir) 
-                                     if f.endswith(('.jpg', '.png'))]
-                            frame_paths[user][obj].extend(frames)
-        
-        return frame_paths
-    
-    def sample_episode(self, n_way=None, k_shot=None, n_query=None):
-        """
-        Sample a few-shot learning episode from the dataset
-        
-        Args:
-            n_way: Number of classes per episode
-            k_shot: Number of support examples per class
-            n_query: Number of query examples per class
-            
-        Returns:
-            Dictionary containing support and query sets
-        """
-        if n_way is None:
-            n_way = Config.n_way
-        if k_shot is None:
-            k_shot = Config.k_shot
-        if n_query is None:
-            n_query = Config.n_query
-            
-        # Sample users
-        sampled_users = random.sample(self.users, min(n_way, len(self.users)))
-        
-        support_images = []
-        support_labels = []
-        query_images = []
-        query_labels = []
-        
-        for label_idx, user in enumerate(sampled_users):
-            # For each user, sample one object
-            available_objects = [obj for obj in self.user_objects[user] 
-                               if len(self.frame_paths[user][obj]) >= (k_shot + n_query)]
-            
-            if not available_objects:
+            user_dir = os.path.join(self.root_dir, user)
+            if not os.path.isdir(user_dir):
                 continue
                 
-            obj = random.choice(available_objects)
-            
-            # Sample frames for this object
-            available_frames = self.frame_paths[user][obj]
-            sampled_frames = random.sample(available_frames, k_shot + n_query)
-            
-            # Split into support and query
-            support_frames = sampled_frames[:k_shot]
-            query_frames = sampled_frames[k_shot:k_shot + n_query]
-            
-            # Load images
-            for frame_path in support_frames:
-                img = self._load_and_transform_image(frame_path)
-                support_images.append(img)
-                support_labels.append(label_idx)
+            # For each object in user's collection
+            objects = [obj for obj in os.listdir(user_dir) if os.path.isdir(os.path.join(user_dir, obj))]
+            for obj in objects:
+                obj_dir = os.path.join(user_dir, obj)
                 
-            for frame_path in query_frames:
-                img = self._load_and_transform_image(frame_path)
-                query_images.append(img)
-                query_labels.append(label_idx)
-        
-        # Convert to tensors
-        support_images = torch.stack(support_images)
-        support_labels = torch.tensor(support_labels)
-        query_images = torch.stack(query_images)
-        query_labels = torch.tensor(query_labels)
-        
-        return {
-            'support_images': support_images,
-            'support_labels': support_labels,
-            'query_images': query_images,
-            'query_labels': query_labels
-        }
+                # Map this object to a label index
+                obj_key = f"{user}_{obj}"
+                if obj_key not in self.label_map:
+                    self.label_map[obj_key] = label_idx
+                    label_idx += 1
+                
+                # Get all clean/train and/or clutter/test videos as specified by mode
+                if self.mode == 'train':
+                    videos = [v for v in os.listdir(obj_dir) if "clean" in v.lower()]
+                elif self.mode == 'val':
+                    # Use some clean videos for validation
+                    all_clean = [v for v in os.listdir(obj_dir) if "clean" in v.lower()]
+                    videos = all_clean[:max(1, len(all_clean) // 5)]  # Use 20% for validation
+                elif self.mode == 'test':
+                    videos = [v for v in os.listdir(obj_dir) if "clutter" in v.lower()]
+                
+                # For each video, get frames
+                for video in videos:
+                    video_dir = os.path.join(obj_dir, video)
+                    if not os.path.isdir(video_dir):
+                        continue
+                    
+                    frames = [f for f in os.listdir(video_dir) if f.endswith(('.jpg', '.png'))]
+                    # For training, use all frames. For validation/testing, sample frames
+                    if self.mode == 'train':
+                        selected_frames = frames
+                    else:
+                        # Sample a subset of frames for val/test to keep it manageable
+                        selected_frames = frames[::max(1, len(frames) // 10)]
+                    
+                    for frame in selected_frames:
+                        self.samples.append(os.path.join(video_dir, frame))
+                        self.labels.append(self.label_map[obj_key])
     
-    def _load_and_transform_image(self, image_path):
-        """Load and preprocess an image"""
-        try:
-            img = Image.open(image_path).convert('RGB')
-            return self.transform(img)
-        except Exception as e:
-            print(f"Error loading image {image_path}: {e}")
-            # Return a blank image as fallback
-            blank = Image.new('RGB', (224, 224), color=(0, 0, 0))
-            return self.transform(blank)
+    def __len__(self):
+        return len(self.samples)
+    
+    def __getitem__(self, idx):
+        img_path = self.samples[idx]
+        label = self.labels[idx]
+        
+        image = Image.open(img_path).convert('RGB')
+        
+        if self.transform:
+            image = self.transform(image)
+        
+        return image, label
 
-# EfficientNet-based Prototypical Network for Few-Shot Learning
-class EfficientNetProtoNet(nn.Module):
-    def __init__(self, version='b0', pretrained=True, num_classes=1000):
-        super(EfficientNetProtoNet, self).__init__()
+def load_user_splits(root_dir, split_file=None):
+    """
+    Load user splits from the ORBIT dataset.
+    If split_file is not provided, creates a random split.
+    """
+    if split_file and os.path.exists(split_file):
+        # Load predefined splits
+        splits = pd.read_csv(split_file)
+        train_users = splits[splits['split'] == 'train']['user'].tolist()
+        val_users = splits[splits['split'] == 'val']['user'].tolist()
+        test_users = splits[splits['split'] == 'test']['user'].tolist()
+    else:
+        # Create random splits
+        users = [user for user in os.listdir(root_dir) if os.path.isdir(os.path.join(root_dir, user))]
+        np.random.shuffle(users)
         
-        # Load the appropriate EfficientNet model
-        if version == 'b0':
-            self.efficientnet = models.efficientnet_b0(pretrained=pretrained)
-        elif version == 'b1':
-            self.efficientnet = models.efficientnet_b1(pretrained=pretrained)
-        elif version == 'b2':
-            self.efficientnet = models.efficientnet_b2(pretrained=pretrained)
-        elif version == 'b3':
-            self.efficientnet = models.efficientnet_b3(pretrained=pretrained)
-        elif version == 'b4':
-            self.efficientnet = models.efficientnet_b4(pretrained=pretrained)
-        elif version == 'b5':
-            self.efficientnet = models.efficientnet_b5(pretrained=pretrained)
-        elif version == 'b6':
-            self.efficientnet = models.efficientnet_b6(pretrained=pretrained)
-        elif version == 'b7':
-            self.efficientnet = models.efficientnet_b7(pretrained=pretrained)
-        else:
-            raise ValueError(f"Unknown EfficientNet version: {version}")
+        train_size = int(0.7 * len(users))
+        val_size = int(0.15 * len(users))
         
-        # Remove classifier for feature extraction
-        feature_dims = self.efficientnet.classifier[1].in_features
-        self.efficientnet.classifier = nn.Identity()
-        
-        # Embedding projection layer (reduce dimensionality)
-        self.embedding = nn.Linear(feature_dims, 512)
-        
-        # Initialize weights
-        nn.init.xavier_uniform_(self.embedding.weight)
-        
-    def forward(self, x):
-        """Extract features from input images"""
-        features = self.efficientnet(x)
-        embeddings = self.embedding(features)
-        # L2 normalize embeddings
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-        return embeddings
+        train_users = users[:train_size]
+        val_users = users[train_size:train_size + val_size]
+        test_users = users[train_size + val_size:]
     
-    def predict(self, support_images, support_labels, query_images):
-        """
-        Perform episodic prediction using prototypical networks approach
-        
-        Args:
-            support_images: Images in the support set
-            support_labels: Labels for the support set
-            query_images: Query images to classify
-            
-        Returns:
-            Predicted class probabilities for query images
-        """
-        # Extract features
-        support_features = self(support_images)
-        query_features = self(query_images)
-        
-        # Calculate prototypes (class centroids)
-        unique_labels = torch.unique(support_labels)
-        prototypes = torch.zeros(len(unique_labels), support_features.shape[1]).to(support_features.device)
-        
-        for i, label in enumerate(unique_labels):
-            mask = support_labels == label
-            prototypes[i] = support_features[mask].mean(0)
-        
-        # Calculate distances to prototypes
-        dists = torch.cdist(query_features, prototypes)
-        
-        # Convert distances to probabilities (negative distance)
-        logits = -dists
-        probs = F.softmax(logits, dim=1)
-        
-        return probs
+    return train_users, val_users, test_users
 
-# Training and evaluation functions
-def train_episode(model, optimizer, episode_data, device):
-    """Train model on a single episode"""
-    model.train()
+def get_model(num_classes):
+    """
+    Get a pre-trained EfficientNet-B0 model and modify the final layer
+    for fine-tuning on the ORBIT dataset.
+    """
+    model = models.efficientnet_b0(pretrained=True)
     
-    # Move data to device
-    support_images = episode_data['support_images'].to(device)
-    support_labels = episode_data['support_labels'].to(device)
-    query_images = episode_data['query_images'].to(device)
-    query_labels = episode_data['query_labels'].to(device)
+    # Freeze the early layers
+    for param in list(model.parameters())[:-10]:
+        param.requires_grad = False
     
-    # Forward pass
-    optimizer.zero_grad()
-    
-    # Get features
-    support_features = model(support_images)
-    query_features = model(query_images)
-    
-    # Calculate prototypes for each class
-    unique_labels = torch.unique(support_labels)
-    n_classes = len(unique_labels)
-    prototypes = torch.zeros(n_classes, support_features.shape[1]).to(device)
-    
-    for i, label in enumerate(unique_labels):
-        mask = support_labels == label
-        prototypes[i] = support_features[mask].mean(0)
-    
-    # Calculate distance from queries to prototypes
-    dists = torch.cdist(query_features, prototypes)
-    
-    # Convert to logits and calculate loss
-    logits = -dists
-    loss = F.cross_entropy(logits, query_labels)
-    
-    # Backward pass
-    loss.backward()
-    optimizer.step()
-    
-    # Calculate accuracy
-    _, preds = torch.max(logits, dim=1)
-    acc = (preds == query_labels).float().mean().item()
-    
-    return loss.item(), acc
-
-def evaluate(model, dataset, num_episodes=100, device=None):
-    """Evaluate model on multiple episodes"""
-    if device is None:
-        device = Config.device
-        
-    model.eval()
-    
-    total_loss = 0
-    total_acc = 0
-    
-    with torch.no_grad():
-        for i in range(num_episodes):
-            # Sample episode
-            episode_data = dataset.sample_episode()
-            
-            # Move data to device
-            support_images = episode_data['support_images'].to(device)
-            support_labels = episode_data['support_labels'].to(device)
-            query_images = episode_data['query_images'].to(device)
-            query_labels = episode_data['query_labels'].to(device)
-            
-            # Get features
-            support_features = model(support_images)
-            query_features = model(query_images)
-            
-            # Calculate prototypes
-            unique_labels = torch.unique(support_labels)
-            n_classes = len(unique_labels)
-            prototypes = torch.zeros(n_classes, support_features.shape[1]).to(device)
-            
-            for j, label in enumerate(unique_labels):
-                mask = support_labels == label
-                prototypes[j] = support_features[mask].mean(0)
-            
-            # Calculate distance and loss
-            dists = torch.cdist(query_features, prototypes)
-            logits = -dists
-            loss = F.cross_entropy(logits, query_labels)
-            
-            # Calculate accuracy
-            _, preds = torch.max(logits, dim=1)
-            acc = (preds == query_labels).float().mean().item()
-            
-            total_loss += loss.item()
-            total_acc += acc
-    
-    avg_loss = total_loss / num_episodes
-    avg_acc = total_acc / num_episodes
-    
-    return avg_loss, avg_acc
-
-# Main training loop
-def train_model():
-    print("Preparing datasets...")
-    train_dataset = ORBITDataset(Config.data_root, split="train")
-    val_dataset = ORBITDataset(Config.data_root, split="val")
-    
-    print("Initializing model...")
-    model = EfficientNetProtoNet(
-        version=Config.efficientnet_version, 
-        pretrained=Config.pretrained
-    )
-    model = model.to(Config.device)
-    
-    optimizer = optim.Adam(model.parameters(), lr=Config.learning_rate)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, patience=3, factor=0.5)
-    
-    best_val_acc = 0
-    train_losses = []
-    train_accs = []
-    val_losses = []
-    val_accs = []
-    
-    print(f"Starting training on {Config.device}...")
-    for epoch in range(Config.num_epochs):
-        # Training phase
-        epoch_loss = 0
-        epoch_acc = 0
-        
-        for episode in tqdm(range(Config.episodes_per_epoch), desc=f"Epoch {epoch+1}/{Config.num_epochs}"):
-            episode_data = train_dataset.sample_episode()
-            loss, acc = train_episode(model, optimizer, episode_data, Config.device)
-            epoch_loss += loss
-            epoch_acc += acc
-        
-        avg_train_loss = epoch_loss / Config.episodes_per_epoch
-        avg_train_acc = epoch_acc / Config.episodes_per_epoch
-        train_losses.append(avg_train_loss)
-        train_accs.append(avg_train_acc)
-        
-        # Validation phase
-        val_loss, val_acc = evaluate(model, val_dataset)
-        val_losses.append(val_loss)
-        val_accs.append(val_acc)
-        
-        # Learning rate scheduling
-        scheduler.step(val_loss)
-        
-        print(f"Epoch {epoch+1}: Train Loss: {avg_train_loss:.4f}, Train Acc: {avg_train_acc:.4f}, "
-              f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.4f}")
-        
-        # Save best model
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
-            torch.save({
-                'epoch': epoch,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'val_acc': val_acc,
-            }, os.path.join(Config.save_dir, 'best_model.pth'))
-            print(f"Saved new best model with validation accuracy: {val_acc:.4f}")
-    
-    # Save final model
-    torch.save({
-        'epoch': Config.num_epochs,
-        'model_state_dict': model.state_dict(),
-        'optimizer_state_dict': optimizer.state_dict(),
-        'val_acc': val_acc,
-    }, os.path.join(Config.save_dir, 'final_model.pth'))
-    
-    # Plot training curves
-    plt.figure(figsize=(12, 5))
-    plt.subplot(1, 2, 1)
-    plt.plot(train_losses, label='Train Loss')
-    plt.plot(val_losses, label='Val Loss')
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss')
-    plt.legend()
-    
-    plt.subplot(1, 2, 2)
-    plt.plot(train_accs, label='Train Accuracy')
-    plt.plot(val_accs, label='Val Accuracy')
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.legend()
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(Config.log_dir, 'training_curves.png'))
+    # Replace final classifier
+    in_features = model.classifier[1].in_features
+    model.classifier[1] = nn.Linear(in_features, num_classes)
     
     return model
 
-# Function to test model on test set
-def test_model(model_path):
-    print("Loading test dataset...")
-    test_dataset = ORBITDataset(Config.data_root, split="test")
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10):
+    """
+    Train the model.
+    """
+    best_acc = 0.0
     
-    print("Loading model...")
-    model = EfficientNetProtoNet(
-        version=Config.efficientnet_version, 
-        pretrained=False
-    )
+    for epoch in range(num_epochs):
+        print(f'Epoch {epoch+1}/{num_epochs}')
+        print('-' * 10)
+        
+        # Training phase
+        model.train()
+        running_loss = 0.0
+        running_corrects = 0
+        
+        for inputs, labels in tqdm(train_loader):
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            
+            optimizer.zero_grad()
+            
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            _, preds = torch.max(outputs, 1)
+            
+            loss.backward()
+            optimizer.step()
+            
+            running_loss += loss.item() * inputs.size(0)
+            running_corrects += torch.sum(preds == labels.data)
+        
+        epoch_loss = running_loss / len(train_loader.dataset)
+        epoch_acc = running_corrects.double() / len(train_loader.dataset)
+        
+        print(f'Train Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+        
+        # Validation phase
+        model.eval()
+        running_loss = 0.0
+        running_corrects = 0
+        
+        with torch.no_grad():
+            for inputs, labels in tqdm(val_loader):
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                
+                outputs = model(inputs)
+                loss = criterion(outputs, labels)
+                _, preds = torch.max(outputs, 1)
+                
+                running_loss += loss.item() * inputs.size(0)
+                running_corrects += torch.sum(preds == labels.data)
+        
+        epoch_loss = running_loss / len(val_loader.dataset)
+        epoch_acc = running_corrects.double() / len(val_loader.dataset)
+        
+        print(f'Val Loss: {epoch_loss:.4f} Acc: {epoch_acc:.4f}')
+        
+        # Save the best model
+        if epoch_acc > best_acc:
+            best_acc = epoch_acc
+            torch.save(model.state_dict(), 'best_efficientnet_orbit.pth')
+            print(f'Saved best model with accuracy: {best_acc:.4f}')
     
-    checkpoint = torch.load(model_path, map_location=Config.device)
-    model.load_state_dict(checkpoint['model_state_dict'])
-    model = model.to(Config.device)
-    
-    print("Evaluating on test set...")
-    test_loss, test_acc = evaluate(model, test_dataset, num_episodes=200)
-    print(f"Test Loss: {test_loss:.4f}, Test Accuracy: {test_acc:.4f}")
-    
-    return test_loss, test_acc
+    return model
 
-# Entry point
-if __name__ == "__main__":
-    print("Starting ORBIT dataset fine-tuning with EfficientNet...")
-    model = train_model()
+def main():
+    # Path to the ORBIT dataset
+    orbit_dir = 'path/to/ORBIT/dataset'  # Update this path
     
-    # Test the best model
-    print("\nTesting best model...")
-    test_model(os.path.join(Config.save_dir, 'best_model.pth'))
+    # Data transformations
+    train_transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.RandomCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    
+    val_transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
+    
+    # Load user splits
+    train_users, val_users, test_users = load_user_splits(orbit_dir)
+    
+    # Create datasets
+    train_dataset = ORBITDataset(orbit_dir, train_users, mode='train', transform=train_transform)
+    val_dataset = ORBITDataset(orbit_dir, val_users, mode='val', transform=val_transform)
+    
+    print(f"Number of training samples: {len(train_dataset)}")
+    print(f"Number of validation samples: {len(val_dataset)}")
+    print(f"Number of classes: {len(train_dataset.label_map)}")
+    
+    # Create data loaders
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False, num_workers=4)
+    
+    # Create the model
+    num_classes = len(train_dataset.label_map)
+    model = get_model(num_classes)
+    model = model.to(device)
+    
+    # Define loss function and optimizer
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    
+    # Train the model
+    model = train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10)
+    
+    print("Training complete!")
+
+if __name__ == "__main__":
+    main()
